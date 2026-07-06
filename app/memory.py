@@ -6,6 +6,15 @@ class ConversationMemory:
     def __init__(self):
         self.messages = []
 
+    def add_message(
+        self,
+        message: dict,
+    ):
+        """
+        Add a raw message to the conversation.
+        """
+        self.messages.append(message)
+
     def add_system_message(self, content: str):
         self.messages.append(
             {
