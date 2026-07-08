@@ -67,3 +67,51 @@ def print_error(message: str):
 
 def print_info(message: str):
     print(f"ℹ️ {message}")
+
+
+def truncate_result(result: any) -> any:
+    """
+    Truncate large dictionaries/lists in task results to save LLM tokens.
+    """
+    if result is None:
+        return None
+    if isinstance(result, list):
+        if not result:
+            return []
+        max_items = 5
+        truncated_list = [truncate_result(item) for item in result[:max_items]]
+        if len(result) > max_items:
+            truncated_list.append(f"... and {len(result) - max_items} more items")
+        return truncated_list
+    if isinstance(result, dict):
+        truncated = {}
+        for k, v in result.items():
+            if k == "instructions" and isinstance(v, list):
+                truncated[k] = f"[{len(v)} instruction steps]"
+            else:
+                truncated[k] = truncate_result(v)
+        return truncated
+    if isinstance(result, str) and len(result) > 150:
+        return result[:150] + "..."
+    return result
+
+
+def build_task_summary(task, full_context: bool = False) -> dict:
+    """
+    Build a dictionary representation of a task with truncated results.
+    """
+    summary = {
+        "description": task.description,
+        "tool_name": task.tool_name,
+        "status": task.status.value,
+        "result": truncate_result(task.result),
+        "error": task.error,
+    }
+    if full_context:
+        summary.update({
+            "task_id": task.id,
+            "arguments": task.arguments,
+            "depends_on": task.depends_on,
+            "priority": task.priority,
+        })
+    return summary

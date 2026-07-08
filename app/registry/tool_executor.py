@@ -1,6 +1,6 @@
 from loguru import logger
 
-from app.tool_registry import AVAILABLE_TOOLS
+from app.registry.tool_registry import AVAILABLE_TOOLS
 
 
 class ToolExecutor:

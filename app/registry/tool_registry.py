@@ -242,3 +242,84 @@ AVAILABLE_TOOLS = {
     "search_hotels": hotel_tool.search_hotels,
     "get_route": maps_tool.get_route,
 }
+
+def get_planner_tools_description() -> str:
+    """
+    Generate a formatted tool description for the Planner Agent.
+    """
+
+    lines = []
+
+    for index, tool in enumerate(TOOLS, start=1):
+
+        function = tool["function"]
+
+        name = function["name"]
+        description = function["description"]
+
+        parameters = function["parameters"]
+
+        properties = parameters.get(
+            "properties",
+            {},
+        )
+
+        required = set(
+            parameters.get(
+                "required",
+                [],
+            )
+        )
+
+        lines.append(
+            f"{index}. {name}"
+        )
+
+        lines.append(
+            f"   Description: {description}"
+        )
+
+        lines.append(
+            "   Parameters:"
+        )
+
+        if not properties:
+
+            lines.append(
+                "      None"
+            )
+
+        else:
+
+            for parameter_name, parameter in properties.items():
+
+                parameter_type = parameter.get(
+                    "type",
+                    "unknown",
+                )
+
+                parameter_description = parameter.get(
+                    "description",
+                    "",
+                )
+
+                required_text = (
+                    "Required"
+                    if parameter_name in required
+                    else "Optional"
+                )
+
+                lines.append(
+                    f"      - {parameter_name} "
+                    f"({parameter_type}, {required_text})"
+                )
+
+                if parameter_description:
+
+                    lines.append(
+                        f"        {parameter_description}"
+                    )
+
+        lines.append("")
+
+    return "\n".join(lines)
