@@ -95,3 +95,8 @@ class Task(BaseModel):
         default=None,
         description="Identifier of the worker thread that executed the task."
     )
+
+    failure_type: str | None = Field(
+        default=None,
+        description="Classification of execution failure: 'logical', 'infrastructure', or 'dependency'."
+    )

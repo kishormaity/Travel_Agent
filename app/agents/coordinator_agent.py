@@ -72,6 +72,16 @@ class CoordinatorAgent:
                 active_plan = executed_plan
                 break
 
+            # Fast-abort on infrastructure failures (e.g. connection timed out, API rate limits)
+            infra_failures = [t for t in failed_tasks if t.failure_type == "infrastructure"]
+            if infra_failures:
+                logger.error(
+                    f"Execution failed due to transient infrastructure errors: "
+                    f"{[t.error for t in infra_failures]}. Replanning aborted."
+                )
+                active_plan = executed_plan
+                break
+
             if replan_attempts >= max_replan_attempts:
                 logger.warning("Maximum replanning attempts reached. Ending execution.")
                 active_plan = executed_plan

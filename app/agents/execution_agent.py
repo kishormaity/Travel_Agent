@@ -235,6 +235,7 @@ class ExecutionAgent:
                         task.finished_at = time.time()
                         task.execution_time = task.finished_at - task.started_at
                         task.error = str(error)
+                        task.failure_type = "infrastructure" if is_retryable else "logical"
                         self._propagate_failure(execution_plan, task.id)
                     self._emit_progress(task)
                     return
@@ -247,6 +248,7 @@ class ExecutionAgent:
             if task.status == TaskStatus.PENDING and failed_task_id in task.depends_on:
                 task.status = TaskStatus.FAILED
                 task.error = f"Parent dependency task {failed_task_id} failed."
+                task.failure_type = "dependency"
                 self._emit_progress(task)
                 self._propagate_failure(execution_plan, task.id)
 
