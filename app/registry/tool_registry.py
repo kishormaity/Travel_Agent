@@ -231,6 +231,23 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "llm_reasoning",
+            "description": "Perform general travel reasoning, answer questions, draft itineraries, or summarize details using the assistant's knowledge base.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "Specific instruction, question, or drafting task to execute."
+                    }
+                },
+                "required": ["prompt"]
+            }
+        }
+    }
 ]
 
 
@@ -241,6 +258,7 @@ AVAILABLE_TOOLS = {
     "search_flights": flight_tool.search_flights,
     "search_hotels": hotel_tool.search_hotels,
     "get_route": maps_tool.get_route,
+    "llm_reasoning": None,
 }
 
 def get_planner_tools_description() -> str:

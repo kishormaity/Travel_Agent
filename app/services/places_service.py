@@ -80,27 +80,36 @@ class PlacesService:
                     params=params,
                 )
 
+                if response.status_code != 200:
+                    try:
+                        err_body = response.json()
+                        err_msg = err_body.get("message")
+                        if err_msg:
+                            raise Exception(f"Geoapify API error message: {err_msg}")
+                    except Exception as e:
+                        if "Geoapify API error message" in str(e):
+                            raise e
+
                 response.raise_for_status()
 
                 data = response.json()
 
+                from app.schemas.api.response_models import PlacesResponseModel
+                validated = PlacesResponseModel.model_validate(data)
+
                 places = []
 
-                for place in data.get("features", []):
+                for place in validated.features:
 
-                    properties = place["properties"]
+                    properties = place.properties
 
                     places.append(
                         {
-                            "name": properties.get("name"),
-                            "address": properties.get(
-                                "formatted"
-                            ),
-                            "latitude": properties.get("lat"),
-                            "longitude": properties.get("lon"),
-                            "categories": properties.get(
-                                "categories"
-                            ),
+                            "name": properties.name,
+                            "address": properties.formatted,
+                            "latitude": properties.lat,
+                            "longitude": properties.lon,
+                            "categories": properties.categories,
                         }
                     )
 

@@ -80,38 +80,47 @@ class MapsService:
                     params=params,
                 )
 
+                if response.status_code != 200:
+                    try:
+                        err_body = response.json()
+                        err_msg = err_body.get("message")
+                        if err_msg:
+                            raise Exception(f"Geoapify API error message: {err_msg}")
+                    except Exception as e:
+                        if "Geoapify API error message" in str(e):
+                            raise e
+
                 response.raise_for_status()
 
-            data = response.json()
+                data = response.json()
 
-            features = data.get("features", [])
+            from app.schemas.api.response_models import MapsResponseModel
+            validated = MapsResponseModel.model_validate(data)
+
+            features = validated.features
 
             if not features:
                 raise ValueError(
                     "No route found."
                 )
 
-            properties = features[0]["properties"]
+            properties = features[0].properties
 
-            distance = properties.get("distance", 0)
-            time = properties.get("time", 0)
+            distance = properties.distance
+            time = properties.time
 
             instructions = []
 
-            legs = properties.get("legs", [])
+            legs = properties.legs
 
             if legs:
 
-                for step in legs[0].get("steps", []):
+                for step in legs[0].steps:
 
                     instructions.append(
                         {
-                            "instruction": step.get(
-                                "instruction"
-                            ),
-                            "distance_m": step.get(
-                                "distance"
-                            ),
+                            "instruction": step.instruction,
+                            "distance_m": step.distance,
                         }
                     )
 

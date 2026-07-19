@@ -73,57 +73,58 @@ class FlightService:
                     params=params,
                 )
 
+                if response.status_code != 200:
+                    try:
+                        err_body = response.json()
+                        err_msg = err_body.get("error", {}).get("message") or err_body.get("error", {}).get("info")
+                        if err_msg:
+                            raise Exception(f"AviationStack API error message: {err_msg}")
+                    except Exception as e:
+                        if "AviationStack API error message" in str(e):
+                            raise e
+
                 response.raise_for_status()
 
-            data = response.json()
+                data = response.json()
+
+                if isinstance(data, dict) and "error" in data:
+                    err_msg = data.get("error", {}).get("message") or data.get("error", {}).get("info")
+                    if err_msg:
+                        raise Exception(f"AviationStack API error message: {err_msg}")
+
+                from app.schemas.api.response_models import FlightResponseModel
+                validated = FlightResponseModel.model_validate(data)
 
             flights = []
 
-            for flight in data.get("data", []):
+            from datetime import datetime
+            today_str = datetime.now().strftime("%Y-%m-%d")
+
+            for flight in validated.data:
+                # If flight_date was not specified, filter out past flights
+                if not flight_date:
+                    if flight.departure and flight.departure.scheduled:
+                        dep_date = flight.departure.scheduled[:10]
+                        if dep_date < today_str:
+                            continue
 
                 flights.append(
                     {
-                        "airline": flight.get("airline", {}).get("name"),
-                        "flight_number": flight.get("flight", {}).get(
-                            "number"
-                        ),
-                        "flight_iata": flight.get("flight", {}).get(
-                            "iata"
-                        ),
-                        "flight_icao": flight.get("flight", {}).get(
-                            "icao"
-                        ),
-                        "departure_airport": flight.get(
-                            "departure", {}
-                        ).get("airport"),
-                        "departure_iata": flight.get(
-                            "departure", {}
-                        ).get("iata"),
-                        "departure_terminal": flight.get(
-                            "departure", {}
-                        ).get("terminal"),
-                        "departure_gate": flight.get(
-                            "departure", {}
-                        ).get("gate"),
-                        "departure_scheduled": flight.get(
-                            "departure", {}
-                        ).get("scheduled"),
-                        "arrival_airport": flight.get(
-                            "arrival", {}
-                        ).get("airport"),
-                        "arrival_iata": flight.get(
-                            "arrival", {}
-                        ).get("iata"),
-                        "arrival_terminal": flight.get(
-                            "arrival", {}
-                        ).get("terminal"),
-                        "arrival_gate": flight.get(
-                            "arrival", {}
-                        ).get("gate"),
-                        "arrival_scheduled": flight.get(
-                            "arrival", {}
-                        ).get("scheduled"),
-                        "flight_status": flight.get("flight_status"),
+                        "airline": flight.airline.name if flight.airline else None,
+                        "flight_number": flight.flight.number if flight.flight else None,
+                        "flight_iata": flight.flight.iata if flight.flight else None,
+                        "flight_icao": flight.flight.icao if flight.flight else None,
+                        "departure_airport": flight.departure.airport if flight.departure else None,
+                        "departure_iata": flight.departure.iata if flight.departure else None,
+                        "departure_terminal": flight.departure.terminal if flight.departure else None,
+                        "departure_gate": flight.departure.gate if flight.departure else None,
+                        "departure_scheduled": flight.departure.scheduled if flight.departure else None,
+                        "arrival_airport": flight.arrival.airport if flight.arrival else None,
+                        "arrival_iata": flight.arrival.iata if flight.arrival else None,
+                        "arrival_terminal": flight.arrival.terminal if flight.arrival else None,
+                        "arrival_gate": flight.arrival.gate if flight.arrival else None,
+                        "arrival_scheduled": flight.arrival.scheduled if flight.arrival else None,
+                        "flight_status": flight.flight_status,
                     }
                 )
 

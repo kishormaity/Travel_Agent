@@ -1,8 +1,10 @@
 import concurrent.futures
 import threading
 import time
+import random
 from typing import Callable
 
+import httpx
 from loguru import logger
 
 from app.schemas.planner import (
@@ -14,6 +16,7 @@ from app.schemas.planner import (
 )
 
 from app.registry.tool_executor import ToolExecutor
+from app.registry.llm_executor import LLMExecutor
 
 
 class ExecutionAgent:
@@ -23,11 +26,12 @@ class ExecutionAgent:
     """
 
     def __init__(self):
-
         self.tool_executor = ToolExecutor()
+        self.llm_executor = LLMExecutor()
         self.lock = threading.Lock()
         self.on_progress = None
         self.stop_requested = False
+        self.worker_counter = 0
 
     def execute(
         self,
@@ -58,11 +62,15 @@ class ExecutionAgent:
         self.on_progress = on_progress
         self.stop_requested = False
 
-        # Reset non-terminal task statuses to PENDING for execution
+        # Reset non-terminal task statuses to PENDING for execution, and reset worker counter
         with self.lock:
+            self.worker_counter = 0
             for task in execution_plan.tasks:
                 if task.status not in (TaskStatus.COMPLETED, TaskStatus.EMPTY_RESULT, TaskStatus.FAILED):
                     task.status = TaskStatus.PENDING
+
+        # Pre-execution cycle detection to fail immediately if dependencies are cyclic
+        self._detect_dependency_cycles(execution_plan.tasks)
 
         running_futures = {}
 
@@ -83,20 +91,6 @@ class ExecutionAgent:
                     # Resolve ready tasks
                     ready_tasks = []
                     for task in pending_tasks:
-                        # Check if any parent dependencies failed
-                        dep_failed = False
-                        for dep_id in task.depends_on:
-                            dep_task = next((t for t in execution_plan.tasks if t.id == dep_id), None)
-                            if dep_task and dep_task.status == TaskStatus.FAILED:
-                                dep_failed = True
-                                break
-
-                        if dep_failed:
-                            task.status = TaskStatus.FAILED
-                            task.error = "Parent dependency task failed."
-                            self._emit_progress(task)
-                            continue
-
                         # Check if all parent dependencies are completed/empty
                         deps_met = True
                         for dep_id in task.depends_on:
@@ -111,7 +105,7 @@ class ExecutionAgent:
                     # Sort ready tasks by priority (lower number runs first)
                     ready_tasks.sort(key=lambda t: t.priority)
 
-                    # Cycle Deadlock Detection
+                    # Cycle Deadlock Detection (fallback check)
                     if pending_tasks and not running_tasks and not ready_tasks:
                         logger.error("Deadlock detected! Details:")
                         for pt in pending_tasks:
@@ -128,10 +122,11 @@ class ExecutionAgent:
                     for task in ready_tasks:
                         task.status = TaskStatus.RUNNING
                         task.started_at = time.time()
-                        task.worker_id = len(running_futures) + 1
+                        self.worker_counter += 1
+                        task.worker_id = self.worker_counter
                         self._emit_progress(task)
 
-                        future = executor.submit(self._run_task_wrapper, task)
+                        future = executor.submit(self._run_task_wrapper, task, execution_plan)
                         running_futures[future] = task
 
                 if not running_futures:
@@ -165,43 +160,117 @@ class ExecutionAgent:
         logger.info("Execution finished.")
         return execution_plan
 
-    def _run_task_wrapper(self, task: Task) -> None:
+    def _run_task_wrapper(self, task: Task, execution_plan: ExecutionPlan) -> None:
         """
         Runs a task's tool, checks for empty results,
-        and logs execution metrics.
+        and logs execution metrics with transient failure retries.
         """
-        try:
-            result = self.tool_executor.execute(
-                tool_name=task.tool_name,
-                arguments=task.arguments,
-            )
+        from app.registry.tool_registry import AVAILABLE_TOOLS
 
-            # Check if outcome is EMPTY_RESULT
-            if self._is_empty_result(result):
-                with self.lock:
-                    task.status = TaskStatus.EMPTY_RESULT
-                    task.result = result
-                    task.finished_at = time.time()
-                    task.execution_time = task.finished_at - task.started_at
-                    task.error = None
-                self._emit_progress(task)
-            else:
-                with self.lock:
-                    task.status = TaskStatus.COMPLETED
-                    task.result = result
-                    task.finished_at = time.time()
-                    task.execution_time = task.finished_at - task.started_at
-                    task.error = None
-                self._emit_progress(task)
+        max_retries = task.max_retries
+        retry_delay = 1.0
 
-        except Exception as error:
-            with self.lock:
+        for attempt in range(max_retries + 1):
+            try:
+                # Check if it should be executed via API ToolExecutor or LLMExecutor fallback
+                if task.tool_name in AVAILABLE_TOOLS and AVAILABLE_TOOLS[task.tool_name] is not None:
+                    result = self.tool_executor.execute(
+                        tool_name=task.tool_name,
+                        arguments=task.arguments,
+                    )
+                else:
+                    result = self.llm_executor.execute(
+                        description=task.description,
+                        arguments=task.arguments,
+                    )
+
+                # Check if outcome is EMPTY_RESULT
+                if self._is_empty_result(result):
+                    with self.lock:
+                        task.status = TaskStatus.EMPTY_RESULT
+                        task.result = result
+                        task.finished_at = time.time()
+                        task.execution_time = task.finished_at - task.started_at
+                        task.error = None
+                    self._emit_progress(task)
+                else:
+                    with self.lock:
+                        task.status = TaskStatus.COMPLETED
+                        task.result = result
+                        task.finished_at = time.time()
+                        task.execution_time = task.finished_at - task.started_at
+                        task.error = None
+                    self._emit_progress(task)
+                return
+
+            except Exception as error:
+                is_retryable = False
+
+                # Trace back to the root cause in case exceptions are wrapped by service classes
+                root_err = error
+                while root_err.__cause__ is not None:
+                    root_err = root_err.__cause__
+
+                # Identify if the root exception is transient and retryable
+                if isinstance(root_err, httpx.RequestError):
+                    is_retryable = True
+                elif isinstance(root_err, httpx.HTTPStatusError):
+                    status_code = root_err.response.status_code
+                    if status_code == 429 or status_code >= 500:
+                        is_retryable = True
+
+                if is_retryable and attempt < max_retries:
+                    task.retry_count = attempt + 1
+                    sleep_time = retry_delay * (2 ** attempt) + random.uniform(0.1, 0.5)
+                    logger.warning(
+                        f"Task {task.id} transient failure ({error}). "
+                        f"Retrying in {sleep_time:.2f}s (Attempt {task.retry_count}/{max_retries})..."
+                    )
+                    time.sleep(sleep_time)
+                else:
+                    # Final failure - propagate recursively to all downstream tasks
+                    with self.lock:
+                        task.status = TaskStatus.FAILED
+                        task.result = None
+                        task.finished_at = time.time()
+                        task.execution_time = task.finished_at - task.started_at
+                        task.error = str(error)
+                        self._propagate_failure(execution_plan, task.id)
+                    self._emit_progress(task)
+                    return
+
+    def _propagate_failure(self, execution_plan: ExecutionPlan, failed_task_id: int) -> None:
+        """
+        Recursively fail all downstream tasks that depend on the failed task.
+        """
+        for task in execution_plan.tasks:
+            if task.status == TaskStatus.PENDING and failed_task_id in task.depends_on:
                 task.status = TaskStatus.FAILED
-                task.result = None
-                task.finished_at = time.time()
-                task.execution_time = task.finished_at - task.started_at
-                task.error = str(error)
-            self._emit_progress(task)
+                task.error = f"Parent dependency task {failed_task_id} failed."
+                self._emit_progress(task)
+                self._propagate_failure(execution_plan, task.id)
+
+    def _detect_dependency_cycles(self, tasks: list[Task]) -> None:
+        """
+        Detect if there is any dependency cycle in the tasks.
+        Raises ValueError if a cycle is detected.
+        """
+        adj = {t.id: t.depends_on for t in tasks}
+        visited = {}  # id -> state (0 = visiting, 1 = visited)
+
+        def dfs(node_id):
+            if node_id in visited:
+                if visited[node_id] == 0:
+                    raise ValueError(f"Dependency cycle detected involving task {node_id}")
+                return
+
+            visited[node_id] = 0
+            for dep in adj.get(node_id, []):
+                dfs(dep)
+            visited[node_id] = 1
+
+        for t in tasks:
+            dfs(t.id)
 
     def _is_empty_result(self, result) -> bool:
         """

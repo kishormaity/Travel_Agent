@@ -86,6 +86,12 @@ Your job is to REPLAN the remaining steps.
 Analyze the executed tasks, their results, and errors.
 Determine what needs to be done next to achieve the user's goal.
 
+CRITICAL INSTRUCTIONS FOR TASK DEPENDENCIES & IDs:
+1. Finished tasks in the history have their original global IDs (e.g. 1, 2, ...).
+2. The next task you generate in the "tasks" list below will be assigned ID {start_id}. The task after that will be assigned ID {start_id_plus_1}, the next one will be {start_id_plus_2}, and so on.
+3. If a task you generate depends on a finished task from the execution history, use its exact historical ID (e.g., 1 or 2) in its "depends_on" list.
+4. If a task you generate depends on another task in this new list, use its assigned ID based on the {start_id} numbering described above (e.g., if it depends on the first new task, use [{start_id}]).
+
 You can:
 1. Retry or work around a FAILED task with different arguments or a different tool if appropriate.
 2. Do NOT retry, repeat, or replan for tasks that returned empty results (status is "empty_result"). Those are terminal states, and their empty results should be accepted and reported as-is.

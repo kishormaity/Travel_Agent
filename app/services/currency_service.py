@@ -59,16 +59,29 @@ class CurrencyService:
                     params=params,
                 )
 
+                if response.status_code != 200:
+                    try:
+                        err_body = response.json()
+                        err_msg = err_body.get("message")
+                        if err_msg:
+                            raise Exception(f"Currency API error message: {err_msg}")
+                    except Exception as e:
+                        if "Currency API error message" in str(e):
+                            raise e
+
                 response.raise_for_status()
 
                 data = response.json()
 
-                if "rates" not in data or to_currency.upper() not in data["rates"]:
+                from app.schemas.api.response_models import CurrencyResponseModel
+                validated = CurrencyResponseModel.model_validate(data)
+
+                if validated.rates is None or to_currency.upper() not in validated.rates:
                     raise ValueError(
                         f"Invalid currency code: {to_currency.upper()}"
                     )
 
-                converted_amount = data["rates"][to_currency.upper()]
+                converted_amount = validated.rates[to_currency.upper()]
 
                 logger.info(
                     f"Currency converted successfully: "
@@ -77,12 +90,12 @@ class CurrencyService:
                 )
 
                 return {
-                    "amount": data["amount"],
-                    "from_currency": data["base"],
+                    "amount": validated.amount,
+                    "from_currency": validated.base,
                     "to_currency": to_currency.upper(),
                     "converted_amount": converted_amount,
                     "exchange_rate": converted_amount / amount,
-                    "date": data["date"],
+                    "date": validated.date,
                 }
 
         except httpx.HTTPStatusError as error:

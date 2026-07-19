@@ -40,6 +40,7 @@ class PlannerAgent:
         user_goal: str,
         prompt_type: str = "planner",
         context: dict = None,
+        start_id: int = 1,
     ) -> ExecutionPlan:
         """
         Generate an execution plan.
@@ -51,6 +52,8 @@ class PlannerAgent:
                 The type of prompt to use ("planner" or "replanner").
             context:
                 Context dict containing memory summary, recent messages, and execution history.
+            start_id:
+                Starting integer ID for the generated tasks.
 
         Returns:
             ExecutionPlan
@@ -69,6 +72,7 @@ class PlannerAgent:
                 return self.planner.build_plan(
                     goal=user_goal,
                     planner_response=planner_response,
+                    start_id=start_id,
                 )
 
             except ValueError as error:
@@ -143,12 +147,22 @@ class PlannerAgent:
                 default=str,
             )
 
+            start_id = context.get("start_id", 1)
             system_prompt = REPLANNER_SYSTEM_PROMPT.replace(
                 "{execution_history}",
                 execution_history_str,
             ).replace(
                 "{available_tools}",
                 get_planner_tools_description(),
+            ).replace(
+                "{start_id}",
+                str(start_id),
+            ).replace(
+                "{start_id_plus_1}",
+                str(start_id + 1),
+            ).replace(
+                "{start_id_plus_2}",
+                str(start_id + 2),
             )
 
         else:
@@ -158,10 +172,12 @@ class PlannerAgent:
                 get_planner_tools_description(),
             )
 
+        from datetime import datetime
+        current_time_context = f"\n\nCurrent Local Date and Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         messages = [
             {
                 "role": "system",
-                "content": system_prompt,
+                "content": system_prompt + current_time_context,
             }
         ]
 

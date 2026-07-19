@@ -24,6 +24,7 @@ class Planner:
         self,
         goal: str,
         planner_response: PlannerResponse,
+        start_id: int = 1,
     ) -> ExecutionPlan:
         """
         Build an ExecutionPlan from a validated PlannerResponse.
@@ -33,7 +34,7 @@ class Planner:
 
         for index, planner_task in enumerate(
             planner_response.tasks,
-            start=1,
+            start=start_id,
         ):
 
             self._validate_tool_name(

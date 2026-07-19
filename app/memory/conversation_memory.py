@@ -1,3 +1,5 @@
+from loguru import logger
+
 class ConversationMemory:
     """
     Stores the conversation history between the user and the AI agent.
@@ -85,9 +87,8 @@ class ConversationMemory:
             )
             self.summary = response.choices[0].message.content.strip()
             self.summarized_up_to = len(self.messages)
-        except Exception:
-            # Fallback if LLM call fails
-            pass
+        except Exception as error:
+            logger.exception(f"Failed to update conversation summary: {error}")
 
     def get_history_context(self, max_recent: int = 5) -> dict:
         """

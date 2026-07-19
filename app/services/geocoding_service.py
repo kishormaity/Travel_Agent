@@ -42,34 +42,47 @@ class GeocodingService:
                     params=params,
                 )
 
+                if response.status_code != 200:
+                    try:
+                        err_body = response.json()
+                        err_msg = err_body.get("message")
+                        if err_msg:
+                            raise Exception(f"Geoapify API error message: {err_msg}")
+                    except Exception as e:
+                        if "Geoapify API error message" in str(e):
+                            raise e
+
                 response.raise_for_status()
 
-            data = response.json()
+                data = response.json()
 
-            features = data.get("features", [])
+            from app.schemas.api.response_models import GeocodingResponseModel
+            validated = GeocodingResponseModel.model_validate(data)
+
+            features = validated.features
 
             if not features:
                 raise ValueError(
                     f"No location found for '{city}'."
                 )
 
-            properties = features[0]["properties"]
+            properties = features[0].properties
 
             logger.info(
                 f"Successfully geocoded '{city}'."
             )
 
             return {
-                "place_id": properties.get("place_id"),
-                "city": properties.get("city"),
-                "state": properties.get("state"),
-                "country": properties.get("country"),
-                "country_code": properties.get("country_code"),
-                "postcode": properties.get("postcode"),
-                "formatted_address": properties.get("formatted"),
-                "latitude": properties.get("lat"),
-                "longitude": properties.get("lon"),
-                "timezone": properties.get("timezone", {}).get("name"),
+                "place_id": properties.place_id,
+                "city": properties.city,
+                "state": properties.state,
+                "country": properties.country,
+                "country_code": properties.country_code,
+                "postcode": properties.postcode,
+                "formatted_address": properties.formatted,
+                "latitude": properties.lat,
+                "longitude": properties.lon,
+                "timezone": properties.timezone.name if properties.timezone else None,
             }
 
         except httpx.HTTPStatusError as error:

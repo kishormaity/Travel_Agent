@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from loguru import logger
 
@@ -60,7 +61,7 @@ class ResponseAgent:
             messages=[
                 {
                     "role": "system",
-                    "content": RESPONSE_SYSTEM_PROMPT,
+                    "content": f"{RESPONSE_SYSTEM_PROMPT}\n\nCurrent Local Date and Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 },
                 {
                     "role": "user",

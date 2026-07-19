@@ -36,30 +36,42 @@ class WeatherService:
                     params=params,
                 )
 
-                response.raise_for_status()
+                if response.status_code != 200:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("error", {}).get("message")
+                        if error_msg:
+                            raise Exception(f"Weather API error message: {error_msg}")
+                    except Exception as e:
+                        if "Weather API error message" in str(e):
+                            raise e
 
+                response.raise_for_status()
                 data = response.json()
+
+                from app.schemas.api.response_models import WeatherResponseModel
+                validated = WeatherResponseModel.model_validate(data)
 
                 logger.info(
                     f"Successfully fetched weather for city='{city}'"
                 )
 
                 return {
-                    "city": data["location"]["name"],
-                    "region": data["location"]["region"],
-                    "country": data["location"]["country"],
-                    "latitude": data["location"]["lat"],
-                    "longitude": data["location"]["lon"],
-                    "local_time": data["location"]["localtime"],
-                    "temperature_c": data["current"]["temp_c"],
-                    "temperature_f": data["current"]["temp_f"],
-                    "condition": data["current"]["condition"]["text"],
-                    "humidity": data["current"]["humidity"],
-                    "wind_kph": data["current"]["wind_kph"],
-                    "wind_direction": data["current"]["wind_dir"],
-                    "feels_like_c": data["current"]["feelslike_c"],
-                    "visibility_km": data["current"]["vis_km"],
-                    "uv_index": data["current"]["uv"],
+                    "city": validated.location.name,
+                    "region": validated.location.region,
+                    "country": validated.location.country,
+                    "latitude": validated.location.lat,
+                    "longitude": validated.location.lon,
+                    "local_time": validated.location.localtime,
+                    "temperature_c": validated.current.temp_c,
+                    "temperature_f": validated.current.temp_f,
+                    "condition": validated.current.condition.text,
+                    "humidity": validated.current.humidity,
+                    "wind_kph": validated.current.wind_kph,
+                    "wind_direction": validated.current.wind_dir,
+                    "feels_like_c": validated.current.feelslike_c,
+                    "visibility_km": validated.current.vis_km,
+                    "uv_index": validated.current.uv,
                 }
 
         except httpx.HTTPStatusError as error:
