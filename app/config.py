@@ -52,6 +52,8 @@ GEOAPIFY_ROUTING_API_BASE_URL = os.getenv(
 
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
+PLANNER_TEMPERATURE = float(os.getenv("PLANNER_TEMPERATURE", "0.0"))
+RESPONSE_TEMPERATURE = float(os.getenv("RESPONSE_TEMPERATURE", "0.7"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "1024"))
 
 # ==========================

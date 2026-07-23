@@ -49,55 +49,84 @@ class ConversationMemory:
         """
         return self.messages
 
-    def update_summary(self, llm_client, model_name: str):
+    def get_conversation_summary(
+        self,
+        llm_client,
+        model_name: str,
+        word_threshold: int = 300,
+        max_combined_chars: int = 1500,
+    ) -> str:
         """
-        Use the LLM to update the conversation summary based on current messages.
+        Get the conversation summary, returning combined context or updating via LLM if threshold/length limit is reached.
         """
         if not self.messages:
-            return
+            return self.summary
 
-        prompt = (
-            "You are a helpful assistant. Summarize the conversation history between the user and the travel assistant. "
-            "Focus on extracting and summarizing the user's travel preferences, constraints, budget, and destination details. "
-            "Ignore system instructions or tool execution logs. Keep the summary concise."
+        new_messages = self.messages[self.summarized_up_to:] if self.summary else self.messages
+        
+        if not new_messages:
+            return self.summary
+
+        new_messages_text = "\n".join(
+            f"- {msg.get('role', 'user').capitalize()}: {msg.get('content', '')}"
+            for msg in new_messages 
+            if isinstance(msg, dict) and msg.get('content')
         )
 
-        messages_to_summarize = [
-            {"role": "system", "content": prompt}
-        ]
+        new_words = sum(len(msg.get("content", "").split()) for msg in new_messages if isinstance(msg, dict))
 
+        # Combine previous summary with recent unsummarized updates
         if self.summary:
-            messages_to_summarize.append(
-                {"role": "system", "content": f"Current summary: {self.summary}"}
-            )
-            # Feed only the new messages that occurred since the last summary update
-            new_messages = self.messages[self.summarized_up_to:]
-            if not new_messages:
-                return  # No new messages to summarize
-            messages_to_summarize.extend(new_messages)
+            combined_context = f"{self.summary}\n\nRecent Updates:\n{new_messages_text}"
         else:
-            messages_to_summarize.extend(self.messages)
+            combined_context = new_messages_text
+
+        # Fast path: below word threshold AND within context size limit -> return combined context directly
+        if new_words < word_threshold and len(combined_context) < max_combined_chars:
+            return combined_context
+
+        # LLM Path: Trigger summarization if new words >= threshold OR combined context exceeds size limit
+        if self.summary:
+            prompt = (
+                "You are an AI maintaining an ongoing travel plan summary for an interactive travel assistant.\n"
+                "Your task is to update the Previous Summary with the New Messages (user requests, assistant proposals, tool outputs) below.\n\n"
+                "CRITICAL INSTRUCTIONS:\n"
+                "1. IDENTIFY ESSENTIAL CHANGES: Carefully analyze the New Messages to detect any updated user choices or mind-changes "
+                "(e.g., changes to destination, budget, travel dates, flight class, hotel ratings, dietary restrictions, or trip constraints).\n"
+                "2. OVERWRITE UPDATED FIELDS: Overwrite specific details in the Previous Summary ONLY if the user explicitly modified or updated them in the New Messages.\n"
+                "3. RETAIN SHORT TOOL FINDINGS: Keep essential tool outputs and recommendations (e.g., top flight numbers/prices, key weather conditions, hotel names) as SHORT concise bullet points. Never store raw API payloads or full JSON outputs.\n"
+                "4. PRESERVE UNCHANGED PREFERENCES: Retain all non-conflicting preferences, budget limits, and constraints from the Previous Summary.\n"
+                "5. OUTPUT FORMAT: Output a clean, concise bulleted summary listing active travel preferences, destination, budget, constraints, and relevant tool results.\n\n"
+                f"=== PREVIOUS SUMMARY ===\n{self.summary}\n\n"
+                f"=== NEW MESSAGES ===\n{new_messages_text}"
+            )
+        else:
+            prompt = (
+                "Summarize the conversation history (user requests, assistant proposals, and tool outputs), focusing on destination, "
+                "travel preferences (hotel rating, flight class, dietary restrictions), budget, travel dates, constraints, and key tool findings.\n"
+                "Output a clean, concise bulleted summary.\n\n"
+                f"=== NEW MESSAGES ===\n{new_messages_text}"
+            )
 
         try:
             response = llm_client.chat.completions.create(
                 model=model_name,
-                messages=messages_to_summarize,
-                temperature=0.3,
-                max_completion_tokens=500
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_completion_tokens=400
             )
             self.summary = response.choices[0].message.content.strip()
             self.summarized_up_to = len(self.messages)
+            return self.summary
         except Exception as error:
             logger.exception(f"Failed to update conversation summary: {error}")
+            return combined_context
 
-    def get_history_context(self, max_recent: int = 5) -> dict:
+    def get_history_context(self, max_recent: int) -> list[dict]:
         """
-        Return the summary and the most recent messages.
+        Return only the recent messages.
         """
-        return {
-            "conversation_summary": self.summary,
-            "recent_messages": self.messages[-max_recent:] if self.messages else []
-        }
+        return self.messages[-max_recent:] if self.messages else []
 
     def clear(self):
         """

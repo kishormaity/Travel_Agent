@@ -273,6 +273,7 @@ def get_planner_tools_description() -> str:
         function = tool["function"]
 
         name = function["name"]
+        
         description = function["description"]
 
         parameters = function["parameters"]

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from loguru import logger
+from app.config import MODEL_NAME
 
 
 def setup_logger():
@@ -71,40 +72,73 @@ def print_info(message: str):
 
 def truncate_result(result: any) -> any:
     """
-    Truncate large dictionaries/lists in task results to save LLM tokens.
+    Truncate large dictionaries/lists in task results to save LLM tokens (mechanical fallback).
     """
     if result is None:
         return None
     if isinstance(result, list):
-        if not result:
-            return []
-        max_items = 5
-        truncated_list = [truncate_result(item) for item in result[:max_items]]
-        if len(result) > max_items:
-            truncated_list.append(f"... and {len(result) - max_items} more items")
-        return truncated_list
+        return [truncate_result(item) for item in result[:5]]
     if isinstance(result, dict):
-        truncated = {}
-        for k, v in result.items():
-            if k == "instructions" and isinstance(v, list):
-                truncated[k] = f"[{len(v)} instruction steps]"
-            else:
-                truncated[k] = truncate_result(v)
-        return truncated
+        return {k: truncate_result(v) for k, v in result.items()}
     if isinstance(result, str) and len(result) > 150:
         return result[:150] + "..."
     return result
 
 
-def build_task_summary(task, full_context: bool = False) -> dict:
+def summarize_result_with_llm(
+    result: any,
+    llm_client: any = None,
+    model_name: str = MODEL_NAME,
+    max_length_threshold: int = 300,
+) -> any:
     """
-    Build a dictionary representation of a task with truncated results.
+    Summarize large task results using an LLM to preserve key semantic details.
+    Falls back to mechanical truncation if the result is small or if the LLM call fails.
+    """
+    if result is None:
+        return None
+
+    # Convert dict/list to string for size evaluation
+    result_str = json.dumps(result, default=str) if isinstance(result, (dict, list)) else str(result)
+
+    # Fast path: If result is small, no need to waste LLM tokens or latency
+    if len(result_str) <= max_length_threshold:
+        return result
+
+    try:
+        if llm_client is None:
+            from app.llm.client import get_llm
+            llm_client = get_llm()
+
+        prompt = (
+            "Summarize the following travel API result concisely for an AI planner. "
+            "Highlight key facts like prices, dates, names, ratings, or warnings. "
+            "Keep the summary under 100 words:\n\n"
+            f"{result_str[:2500]}"
+        )
+
+        response = llm_client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_completion_tokens=200,
+        )
+        return f"[LLM Summary]: {response.choices[0].message.content.strip()}"
+
+    except Exception as e:
+        logger.warning(f"LLM result summarization failed, falling back to truncation: {e}")
+        return truncate_result(result)
+
+
+def serialize_task_to_dict(task, full_context: bool = False, llm_client: any = None) -> dict:
+    """
+    Serialize a Pydantic Task object into a dictionary representation with hybrid LLM/truncated results.
     """
     summary = {
         "description": task.description,
         "tool_name": task.tool_name,
         "status": task.status.value,
-        "result": truncate_result(task.result),
+        "result": summarize_result_with_llm(task.result, llm_client=llm_client),
         "error": task.error,
     }
     if full_context:
@@ -114,4 +148,4 @@ def build_task_summary(task, full_context: bool = False) -> dict:
             "depends_on": task.depends_on,
             "priority": task.priority,
         })
-    return summary
+    return summary

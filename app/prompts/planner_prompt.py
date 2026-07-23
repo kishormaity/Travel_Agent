@@ -30,6 +30,7 @@ Rules:
 - Arguments must match the tool parameters.
 - Never invent tool names.
 - Never invent arguments.
+- REUSE EXISTING DATA: Check the Historical Conversation Summary. If valid data for a tool (e.g. flight schedules, weather forecasts, currency rates) has ALREADY been retrieved in previous turns and remains unchanged, DO NOT create tasks to call those tools again. Only generate tasks for missing information or updated user preferences (e.g. searching for seaside hotels).
 
 Example:
 
@@ -88,9 +89,8 @@ Determine what needs to be done next to achieve the user's goal.
 
 CRITICAL INSTRUCTIONS FOR TASK DEPENDENCIES & IDs:
 1. Finished tasks in the history have their original global IDs (e.g. 1, 2, ...).
-2. The next task you generate in the "tasks" list below will be assigned ID {start_id}. The task after that will be assigned ID {start_id_plus_1}, the next one will be {start_id_plus_2}, and so on.
-3. If a task you generate depends on a finished task from the execution history, use its exact historical ID (e.g., 1 or 2) in its "depends_on" list.
-4. If a task you generate depends on another task in this new list, use its assigned ID based on the {start_id} numbering described above (e.g., if it depends on the first new task, use [{start_id}]).
+2. The new tasks you generate will be assigned sequential IDs starting from {start_id}.
+3. If a new task depends on a finished task from execution history or another new task, specify its ID in "depends_on".
 
 You can:
 1. Retry or work around a FAILED task with different arguments or a different tool if appropriate.

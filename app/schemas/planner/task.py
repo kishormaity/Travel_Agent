@@ -10,10 +10,12 @@ class TaskStatus(str, Enum):
     """
 
     PENDING = "pending"
+    READY = "ready"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
-    EMPTY_RESULT = "empty_result"
+    SKIPPED = "skipped"
+    CANCELLED = "cancelled"
 
 
 class Task(BaseModel):

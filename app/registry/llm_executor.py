@@ -14,7 +14,7 @@ class LLMExecutor:
     def __init__(self):
         self.client = get_llm()
 
-    def execute(self, description: str, arguments: dict = None) -> str:
+    def execute(self, description: str, arguments: dict = None, user_request: str = None) -> str:
         """
         Execute a reasoning/fallback task using the LLM with EXECUTION_SYSTEM_PROMPT.
         """
@@ -30,7 +30,10 @@ class LLMExecutor:
             "answering only what is requested."
         )
 
-        user_content = f"Task Description: {description}"
+        user_content = ""
+        if user_request:
+            user_content += f"Overall User Goal:\n{user_request}\n\n"
+        user_content += f"Task Description: {description}"
         if arguments:
             user_content += f"\nArguments: {json.dumps(arguments, ensure_ascii=False)}"
 
@@ -41,7 +44,7 @@ class LLMExecutor:
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": user_content}
                 ],
-                temperature=0.3,
+                temperature=0.0,
                 max_completion_tokens=1024,
             )
 
