@@ -34,7 +34,10 @@ class ToolExecutor:
         try:
             arguments = arguments or {}
 
-            result = tool(**arguments)
+            if hasattr(tool, "invoke"):
+                result = tool.invoke(arguments)
+            else:
+                result = tool(**arguments)
 
             logger.info(
                 f"{tool_name} returned {type(result).__name__}"

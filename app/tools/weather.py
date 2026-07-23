@@ -1,25 +1,17 @@
 from loguru import logger
-
+from langchain_core.tools import tool
 from app.services.weather_service import WeatherService
+
+_weather_service = WeatherService()
+
+
+@tool
+def get_current_weather(city: str) -> dict:
+    """Get the current weather information for a given city."""
+    logger.info(f"Weather Tool invoked for city='{city}'")
+    return _weather_service.get_current_weather(city)
 
 
 class WeatherTool:
-    """
-    Tool responsible for fetching the current weather.
-    """
-
-    def __init__(self):
-        self.weather_service = WeatherService()
-
     def get_current_weather(self, city: str) -> dict:
-        """
-        Fetch the current weather for a given city.
-        """
-
-        logger.info(
-            f"Weather Tool invoked for city='{city}'"
-        )
-
-        weather = self.weather_service.get_current_weather(city)
-
-        return weather
+        return get_current_weather.invoke({"city": city})

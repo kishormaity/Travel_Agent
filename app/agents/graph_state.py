@@ -190,6 +190,7 @@ class TravelAgentState(TypedDict):
     metadata_context: MetadataContext
     
     # Derived / Ephemeral Fields
+    execution_policy: str
     max_replan_attempts: int
     interrupt: InterruptState | None
     final_response: str

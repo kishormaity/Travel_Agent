@@ -52,16 +52,14 @@ def extract_preferences_and_constraints(
         "}\n"
         "Do NOT include any markdown code blocks, explanations, or extra fields. Return ONLY the raw JSON."
     )
-    
     try:
-        response = llm_client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_completion_tokens=500,
-            response_format={"type": "json_object"}
-        )
-        data = json.loads(response.choices[0].message.content.strip())
+        response = llm_client.invoke(prompt)
+        raw_content = response.content.strip()
+        if raw_content.startswith("```json"):
+            raw_content = raw_content[7:]
+        if raw_content.endswith("```"):
+            raw_content = raw_content[:-3]
+        data = json.loads(raw_content.strip())
         
         destination = data.get("destination")
         prefs_data = data.get("preferences", {})
@@ -112,10 +110,11 @@ def load_memory_node(state: TravelAgentState, config: RunnableConfig) -> dict:
         retrieved_memories=[]
     )
     
+    from langchain_core.messages import HumanMessage
     return {
         "planner_context": planner_context,
         "memory_context": memory_context,
-        "messages": [],
+        "messages": [HumanMessage(content=user_goal)],
     }
 
 def _detect_dependency_cycles(tasks: dict[int, Task]) -> None:
@@ -195,11 +194,11 @@ def plan_validator_node(state: TravelAgentState, config: RunnableConfig) -> dict
                     }
 
         # 3. Semantic Validation
-        from app.registry.tool_registry import AVAILABLE_TOOLS, TOOLS
+        from app.registry.tool_registry import AVAILABLE_TOOLS, LANGCHAIN_TOOLS
         required_arguments = {}
-        for tool in TOOLS:
-            function = tool["function"]
-            required_arguments[function["name"]] = function["parameters"].get("required", [])
+        for tool in LANGCHAIN_TOOLS:
+            schema = tool.args_schema.schema() if tool.args_schema else {}
+            required_arguments[tool.name] = schema.get("required", [])
 
         for t_id, task in tasks.items():
             if task.tool_name not in AVAILABLE_TOOLS:
@@ -339,9 +338,11 @@ def responder_node(state: TravelAgentState, config: RunnableConfig) -> dict:
     return {"final_response": response}
 
 def update_memory_node(state: TravelAgentState, config: RunnableConfig) -> dict:
-    """Appends assistant response back to conversation memory."""
+    """Appends assistant response back to conversation memory and messages state."""
     memory = config["configurable"].get("conversation_memory")
     response = state["final_response"]
     
-    memory.add_assistant_message(response)
-    return {}
+    from langchain_core.messages import AIMessage
+    ai_msg = AIMessage(content=response)
+    memory.add_message(ai_msg)
+    return {"messages": [ai_msg]}

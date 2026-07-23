@@ -1,22 +1,28 @@
 import json
 from datetime import datetime
-from app.config import MODEL_NAME
+from loguru import logger
+from langchain_core.prompts import ChatPromptTemplate
 from app.llm import get_llm
 from app.prompts import EXECUTION_SYSTEM_PROMPT
-from loguru import logger
+
 
 class LLMExecutor:
     """
-    Executes reasoning, text generation, and other fallback tasks
-    using the LLM directly instead of calling API tools.
+    Executes reasoning, text generation, and fallback tasks
+    using a standard LangChain LCEL (Prompt | LLM) runnable chain.
     """
 
     def __init__(self):
-        self.client = get_llm()
+        self.llm = get_llm()
+        self.prompt = ChatPromptTemplate.from_messages([
+            ("system", "{system_instruction}"),
+            ("user", "{user_content}"),
+        ])
+        self.chain = self.prompt | self.llm
 
     def execute(self, description: str, arguments: dict = None, user_request: str = None) -> str:
         """
-        Execute a reasoning/fallback task using the LLM with EXECUTION_SYSTEM_PROMPT.
+        Execute a reasoning/fallback task using the LangChain runnable chain.
         """
         arguments = arguments or {}
         logger.info(
@@ -38,18 +44,13 @@ class LLMExecutor:
             user_content += f"\nArguments: {json.dumps(arguments, ensure_ascii=False)}"
 
         try:
-            response = self.client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_content}
-                ],
-                temperature=0.0,
-                max_completion_tokens=1024,
-            )
+            response = self.chain.invoke({
+                "system_instruction": system_instruction,
+                "user_content": user_content,
+            })
 
-            result = response.choices[0].message.content.strip()
-            logger.info("LLM reasoning task completed successfully.")
+            result = response.content.strip()
+            logger.info("LLM reasoning task completed successfully via LangChain chain.")
             return result
 
         except Exception as error:

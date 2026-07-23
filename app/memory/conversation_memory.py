@@ -1,79 +1,75 @@
 from loguru import logger
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, get_buffer_string
+from langchain_core.chat_history import InMemoryChatMessageHistory
+
 
 class ConversationMemory:
     """
-    Stores the conversation history between the user and the AI agent.
+    Stores and manages conversation history using LangChain's InMemoryChatMessageHistory and message utilities.
     """
 
     def __init__(self):
-        self.messages = []
+        self.chat_history = InMemoryChatMessageHistory()
         self.summary = ""
         self.summarized_up_to = 0
 
-    def add_message(
-        self,
-        message: dict,
-    ):
+    @property
+    def messages(self) -> list[BaseMessage]:
+        return self.chat_history.messages
+
+    def add_message(self, message: BaseMessage | dict):
         """
-        Add a raw message to the conversation.
+        Add a BaseMessage or raw dict message to the conversation history.
         """
-        self.messages.append(message)
+        if isinstance(message, dict):
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            if role == "system":
+                self.chat_history.add_message(SystemMessage(content=content))
+            elif role == "assistant":
+                self.chat_history.add_ai_message(content)
+            else:
+                self.chat_history.add_user_message(content)
+        elif isinstance(message, BaseMessage):
+            self.chat_history.add_message(message)
 
     def add_system_message(self, content: str):
-        self.messages.append(
-            {
-                "role": "system",
-                "content": content,
-            }
-        )
+        self.chat_history.add_message(SystemMessage(content=content))
 
     def add_user_message(self, content: str):
-        self.messages.append(
-            {
-                "role": "user",
-                "content": content,
-            }
-        )
+        self.chat_history.add_user_message(content)
 
     def add_assistant_message(self, content: str):
-        self.messages.append(
-            {
-                "role": "assistant",
-                "content": content,
-            }
-        )
+        self.chat_history.add_ai_message(content)
 
-    def get_messages(self):
+    def get_messages(self) -> list[BaseMessage]:
         """
-        Return the complete conversation history.
+        Return the complete conversation message history.
         """
-        return self.messages
+        return self.chat_history.messages
 
     def get_conversation_summary(
         self,
         llm_client,
-        model_name: str,
+        model_name: str = None,
         word_threshold: int = 300,
         max_combined_chars: int = 1500,
     ) -> str:
         """
-        Get the conversation summary, returning combined context or updating via LLM if threshold/length limit is reached.
+        Get or update the conversation summary using LangChain's get_buffer_string utility.
         """
-        if not self.messages:
+        all_messages = self.chat_history.messages
+        if not all_messages:
             return self.summary
 
-        new_messages = self.messages[self.summarized_up_to:] if self.summary else self.messages
-        
+        new_messages = all_messages[self.summarized_up_to:] if self.summary else all_messages
         if not new_messages:
             return self.summary
 
-        new_messages_text = "\n".join(
-            f"- {msg.get('role', 'user').capitalize()}: {msg.get('content', '')}"
-            for msg in new_messages 
-            if isinstance(msg, dict) and msg.get('content')
-        )
+        # Automatically format messages to string using LangChain's get_buffer_string
+        new_messages_text = get_buffer_string(new_messages)
 
-        new_words = sum(len(msg.get("content", "").split()) for msg in new_messages if isinstance(msg, dict))
+        new_words = sum(len(msg.content.split()) for msg in new_messages if hasattr(msg, "content") and isinstance(msg.content, str))
 
         # Combine previous summary with recent unsummarized updates
         if self.summary:
@@ -81,11 +77,11 @@ class ConversationMemory:
         else:
             combined_context = new_messages_text
 
-        # Fast path: below word threshold AND within context size limit -> return combined context directly
+        # Fast path: below word threshold AND within context size limit
         if new_words < word_threshold and len(combined_context) < max_combined_chars:
             return combined_context
 
-        # LLM Path: Trigger summarization if new words >= threshold OR combined context exceeds size limit
+        # LLM Path: Trigger summarization if threshold or length limit is reached
         if self.summary:
             prompt = (
                 "You are an AI maintaining an ongoing travel plan summary for an interactive travel assistant.\n"
@@ -109,29 +105,24 @@ class ConversationMemory:
             )
 
         try:
-            response = llm_client.chat.completions.create(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_completion_tokens=400
-            )
-            self.summary = response.choices[0].message.content.strip()
-            self.summarized_up_to = len(self.messages)
+            response = llm_client.invoke(prompt)
+            self.summary = response.content.strip()
+            self.summarized_up_to = len(all_messages)
             return self.summary
         except Exception as error:
             logger.exception(f"Failed to update conversation summary: {error}")
             return combined_context
 
-    def get_history_context(self, max_recent: int) -> list[dict]:
+    def get_history_context(self, max_recent: int) -> list[BaseMessage]:
         """
-        Return only the recent messages.
+        Return only recent LangChain messages.
         """
-        return self.messages[-max_recent:] if self.messages else []
+        return self.chat_history.messages[-max_recent:] if self.chat_history.messages else []
 
     def clear(self):
         """
         Clear the conversation history and summary.
         """
-        self.messages = []
+        self.chat_history.clear()
         self.summary = ""
         self.summarized_up_to = 0

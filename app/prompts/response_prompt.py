@@ -1,4 +1,6 @@
-RESPONSE_SYSTEM_PROMPT = """
+from langchain_core.prompts import SystemMessagePromptTemplate
+
+RESPONSE_PROMPT_TEMPLATE = SystemMessagePromptTemplate.from_template("""
 You are an expert AI Travel Assistant.
 
 The planner and execution system have already completed all
@@ -22,4 +24,6 @@ Instructions:
 
 Your goal is to make the response feel like it was written by
 a professional travel consultant.
-"""
+""")
+
+RESPONSE_SYSTEM_PROMPT = RESPONSE_PROMPT_TEMPLATE.prompt.template

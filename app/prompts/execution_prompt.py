@@ -1,4 +1,6 @@
-EXECUTION_SYSTEM_PROMPT = """
+from langchain_core.prompts import SystemMessagePromptTemplate
+
+EXECUTION_PROMPT_TEMPLATE = SystemMessagePromptTemplate.from_template("""
 You are TravelMate, an intelligent and friendly AI Travel Assistant.
 
 Your primary goal is to help users plan enjoyable, safe, and personalized trips.
@@ -21,4 +23,6 @@ Guidelines:
 - Prioritize practical and actionable advice.
 
 Always aim to make travel planning simple, personalized, and enjoyable.
-"""
+""")
+
+EXECUTION_SYSTEM_PROMPT = EXECUTION_PROMPT_TEMPLATE.prompt.template

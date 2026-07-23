@@ -26,17 +26,13 @@ class ResponseAgent:
         )
         user_content = f"User Request:\n{user_goal}\n\nExecution Results:\n{execution_summary}"
 
-        response = self.client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_content},
-            ],
-            temperature=RESPONSE_TEMPERATURE,
-            max_completion_tokens=MAX_TOKENS,
-        )
+        from langchain_core.messages import SystemMessage, HumanMessage
+        response = self.client.invoke([
+            SystemMessage(content=system_message),
+            HumanMessage(content=user_content),
+        ])
 
-        return response.choices[0].message.content
+        return response.content
 
     def _build_execution_summary(self, execution_plan: ExecutionPlan) -> str:
         """Convert execution plan tasks into a compact JSON summary to minimize tokens."""

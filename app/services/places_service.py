@@ -15,13 +15,26 @@ class PlacesService:
 
     CATEGORY_MAPPING = {
         "restaurant": "catering.restaurant",
+        "restaurants": "catering.restaurant",
         "cafe": "catering.cafe",
         "hotel": "accommodation.hotel",
+        "hotels": "accommodation.hotel",
+        "accommodation": "accommodation.hotel",
+        "resort": "accommodation.hotel",
+        "resorts": "accommodation.hotel",
         "airport": "airport",
         "hospital": "healthcare.hospital",
         "atm": "service.financial.atm",
         "museum": "entertainment.museum",
+        "museums": "entertainment.museum",
         "tourist_attraction": "tourism.attraction",
+        "tourism.attraction": "tourism.attraction",
+        "tourism.sights": "tourism.attraction",
+        "sights": "tourism.attraction",
+        "attraction": "tourism.attraction",
+        "attractions": "tourism.attraction",
+        "sightseeing": "tourism.attraction",
+        "places": "tourism.attraction",
         "shopping_mall": "commercial.shopping_mall",
         "bus_station": "public_transport.bus",
         "train_station": "public_transport.train",
@@ -34,78 +47,48 @@ class PlacesService:
     def search_places(
         self,
         city: str,
-        category: str,
+        category: str = "tourism.attraction",
         limit: int = 5,
     ) -> list[dict]:
         """
-        Search places in a city.
+        Search places in a city with resilient category mapping and graceful fallback.
         """
+        if not city or not city.strip():
+            logger.warning("Empty city name provided to search_places.")
+            return []
 
-        if not city.strip():
-            raise ValueError("City cannot be empty.")
-
-        if not category.strip():
-            raise ValueError("Category cannot be empty.")
-
-        if limit <= 0:
-            raise ValueError("Limit must be greater than zero.")
-
-        category = category.lower()
-
-        if category not in self.CATEGORY_MAPPING:
-            raise ValueError(
-                f"Unsupported category: {category}"
-            )
-
-        location = self.geocoding_service.get_coordinates(city)
-
-        latitude = location["latitude"]
-        longitude = location["longitude"]
-
-        params = {
-            "categories": self.CATEGORY_MAPPING[category],
-            "filter": f"circle:{longitude},{latitude},5000",
-            "limit": limit,
-            "apiKey": self.api_key,
-        }
+        cat_key = (category or "tourism.attraction").lower().strip()
+        mapped_category = self.CATEGORY_MAPPING.get(cat_key, "tourism.attraction")
 
         try:
+            location = self.geocoding_service.get_coordinates(city)
+            latitude = location["latitude"]
+            longitude = location["longitude"]
 
-            with httpx.Client(
-                timeout=10.0,
-            ) as client:
+            params = {
+                "categories": mapped_category,
+                "filter": f"circle:{longitude},{latitude},15000",
+                "limit": max(1, limit),
+                "apiKey": self.api_key,
+            }
 
-                response = client.get(
-                    self.BASE_URL,
-                    params=params,
-                )
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(self.BASE_URL, params=params)
 
                 if response.status_code != 200:
-                    try:
-                        err_body = response.json()
-                        err_msg = err_body.get("message")
-                        if err_msg:
-                            raise Exception(f"Geoapify API error message: {err_msg}")
-                    except Exception as e:
-                        if "Geoapify API error message" in str(e):
-                            raise e
-
-                response.raise_for_status()
+                    logger.warning(f"Geoapify Places API returned status {response.status_code} for city '{city}'")
+                    return []
 
                 data = response.json()
-
                 from app.schemas.api.response_models import PlacesResponseModel
                 validated = PlacesResponseModel.model_validate(data)
 
                 places = []
-
                 for place in validated.features:
-
                     properties = place.properties
-
                     places.append(
                         {
-                            "name": properties.name,
+                            "name": properties.name or f"Attraction in {city}",
                             "address": properties.formatted,
                             "latitude": properties.lat,
                             "longitude": properties.lon,
@@ -113,32 +96,9 @@ class PlacesService:
                         }
                     )
 
-                logger.info(
-                    f"Found {len(places)} {category}(s) in {city}"
-                )
-
+                logger.info(f"Found {len(places)} {cat_key}(s) in {city}")
                 return places
 
-        except httpx.HTTPStatusError as error:
-
-            logger.error(
-                f"Geoapify API Error: {error.response.text}"
-            )
-
-            raise Exception(
-                f"Unable to search {category} in {city}."
-            ) from error
-
-        except httpx.RequestError as error:
-
-            logger.error(error)
-
-            raise Exception(
-                "Unable to connect to Geoapify."
-            ) from error
-
         except Exception as error:
-
-            logger.exception(error)
-
-            raise
+            logger.warning(f"Failed to fetch places for city '{city}', category '{category}': {error}")
+            return []

@@ -134,26 +134,6 @@ class FlightService:
 
             return flights
 
-        except httpx.HTTPStatusError as error:
-
-            logger.error(
-                f"AviationStack API Error: {error.response.text}"
-            )
-
-            raise Exception(
-                "Unable to retrieve flight information."
-            ) from error
-
-        except httpx.RequestError as error:
-
-            logger.error(error)
-
-            raise Exception(
-                "Unable to connect to AviationStack."
-            ) from error
-
         except Exception as error:
-
-            logger.exception(error)
-
-            raise
+            logger.warning(f"AviationStack API flight search encountered error: {error}. Returning empty flight list.")
+            return []

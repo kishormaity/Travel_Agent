@@ -90,46 +90,31 @@ def build_prompt_node(state: PlanningPipelineState) -> dict:
 
     current_time_context = f"\n\nCurrent Local Date and Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     
+    from langchain_core.messages import SystemMessage, HumanMessage
     prompt_messages = [
-        {
-            "role": "system",
-            "content": system_prompt + schema_instruction + current_time_context
-        }
+        SystemMessage(content=system_prompt + schema_instruction + current_time_context)
     ]
     
     # Injects running summary of conversation history
     summary = planner_context.conversation_summary if planner_context else ""
     if summary:
-        prompt_messages.append({
-            "role": "system",
-            "content": f"Historical Conversation Summary:\n{summary}"
-        })
+        prompt_messages.append(SystemMessage(content=f"Historical Conversation Summary:\n{summary}"))
         
-    prompt_messages.append({
-        "role": "user",
-        "content": user_request
-    })
+    prompt_messages.append(HumanMessage(content=user_request))
         
     return {"prompt_messages": prompt_messages, "replan_count": replan_count}
 
 def query_llm_node(state: PlanningPipelineState, config: RunnableConfig) -> dict:
-    """Submits messages statelessly to Groq client."""
+    """Submits messages statelessly to ChatGroq client."""
     llm_client = config["configurable"].get("llm_client")
-    model_name = config["configurable"].get("model_name")
     prompt_messages = state["prompt_messages"]
     
     replan_count = state.get("replan_count", 0)
     prompt_type = "replanner" if replan_count > 0 else "planner"
     logger.info(f"Planner attempt {replan_count + 1} ({prompt_type}) via LangGraph Planning Pipeline Subgraph")
     
-    response = llm_client.chat.completions.create(
-        model=model_name,
-        messages=prompt_messages,
-        temperature=PLANNER_TEMPERATURE,
-        max_completion_tokens=MAX_TOKENS,
-        response_format={"type": "json_object"},
-    )
-    return {"llm_response": response.choices[0].message.content}
+    response = llm_client.invoke(prompt_messages)
+    return {"llm_response": response.content}
 
 def parse_and_map_node(state: PlanningPipelineState, config: RunnableConfig) -> dict:
     """Extracts JSON, runs Pydantic validations, and maps task IDs sequentially in code."""

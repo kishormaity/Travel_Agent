@@ -100,9 +100,14 @@ class MapsService:
             features = validated.features
 
             if not features:
-                raise ValueError(
-                    "No route found."
-                )
+                logger.warning(f"No driving route found between '{origin}' and '{destination}'.")
+                return {
+                    "status": "no_route_found",
+                    "origin": origin,
+                    "destination": destination,
+                    "mode": mode,
+                    "message": f"No driving/transit route found between '{origin}' and '{destination}'. Direct long-distance flight or train travel recommended."
+                }
 
             properties = features[0].properties
 
@@ -114,12 +119,11 @@ class MapsService:
             legs = properties.legs
 
             if legs:
-
                 for step in legs[0].steps:
-
+                    inst_text = step.instruction.get("text", "") if isinstance(step.instruction, dict) else str(step.instruction or "")
                     instructions.append(
                         {
-                            "instruction": step.instruction,
+                            "instruction": inst_text,
                             "distance_m": step.distance,
                         }
                     )
@@ -130,6 +134,7 @@ class MapsService:
             )
 
             return {
+                "status": "success",
                 "origin": origin,
                 "destination": destination,
                 "mode": mode,
@@ -146,27 +151,12 @@ class MapsService:
                 "instructions": instructions,
             }
 
-        except httpx.HTTPStatusError as error:
-
-            logger.error(
-                f"Geoapify Routing API Error: "
-                f"{error.response.text}"
-            )
-
-            raise Exception(
-                "Unable to calculate route."
-            ) from error
-
-        except httpx.RequestError as error:
-
-            logger.error(error)
-
-            raise Exception(
-                "Unable to connect to Geoapify."
-            ) from error
-
         except Exception as error:
-
-            logger.exception(error)
-
-            raise
+            logger.warning(f"Geoapify Routing API gracefully handled error for {origin} -> {destination}: {error}")
+            return {
+                "status": "no_route_found",
+                "origin": origin,
+                "destination": destination,
+                "mode": mode,
+                "message": f"No direct driving route found between '{origin}' and '{destination}'. Recommend checking flight or train options."
+            }

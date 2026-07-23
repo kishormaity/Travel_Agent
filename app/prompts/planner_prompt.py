@@ -1,4 +1,6 @@
-PLANNER_SYSTEM_PROMPT = """
+from langchain_core.prompts import PromptTemplate
+
+PLANNER_PROMPT_TEMPLATE = PromptTemplate.from_template("""
 You are the Planning Agent of an AI Travel Assistant.
 
 Your ONLY responsibility is to create an execution plan.
@@ -34,44 +36,44 @@ Rules:
 
 Example:
 
-{
+{{
     "tasks": [
-        {
+        {{
             "description": "Convert budget to USD",
             "tool_name": "convert_currency",
-            "arguments": {
+            "arguments": {{
                 "amount": 30000,
                 "from_currency": "INR",
                 "to_currency": "USD"
-            },
+            }},
             "depends_on": [],
             "priority": 1
-        },
-        {
+        }},
+        {{
             "description": "Search flights",
             "tool_name": "search_flights",
-            "arguments": {
+            "arguments": {{
                 "departure_iata": "DEL",
                 "arrival_iata": "BOM"
-            },
+            }},
             "depends_on": [],
             "priority": 1
-        },
-        {
+        }},
+        {{
             "description": "Find hotels",
             "tool_name": "search_hotels",
-            "arguments": {
+            "arguments": {{
                 "city": "Mumbai",
                 "limit": 5
-            },
+            }},
             "depends_on": [],
             "priority": 2
-        }
+        }}
     ]
-}
-"""
+}}
+""")
 
-REPLANNER_SYSTEM_PROMPT = """
+REPLANNER_PROMPT_TEMPLATE = PromptTemplate.from_template("""
 You are the Planning Agent of an AI Travel Assistant.
 
 The system is currently executing a plan to achieve the user's goal.
@@ -100,23 +102,19 @@ You can:
 
 Return the updated list of tasks that still need to execute.
 Format your response as a valid JSON object matching the PlannerResponse schema:
-{
+{{
     "tasks": [
-        {
+        {{
             "description": "Description of the task",
             "tool_name": "tool_to_use",
-            "arguments": { ... },
+            "arguments": {{ ... }},
             "depends_on": [],
             "priority": 1
-        }
+        }}
     ]
-}
+}}
+""")
 
-Rules:
-- Return ONLY valid JSON.
-- Do NOT use markdown.
-- Do NOT wrap JSON inside ``` blocks.
-- Arguments must match the tool parameters.
-- Never invent tool names.
-- Never invent arguments.
-"""
+# Export raw string compatibility for legacy calls
+PLANNER_SYSTEM_PROMPT = PLANNER_PROMPT_TEMPLATE.template
+REPLANNER_SYSTEM_PROMPT = REPLANNER_PROMPT_TEMPLATE.template

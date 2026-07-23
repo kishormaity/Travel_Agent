@@ -117,13 +117,8 @@ def summarize_result_with_llm(
             f"{result_str[:2500]}"
         )
 
-        response = llm_client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_completion_tokens=200,
-        )
-        return f"[LLM Summary]: {response.choices[0].message.content.strip()}"
+        response = llm_client.invoke(prompt)
+        return f"[LLM Summary]: {response.content.strip()}"
 
     except Exception as e:
         logger.warning(f"LLM result summarization failed, falling back to truncation: {e}")

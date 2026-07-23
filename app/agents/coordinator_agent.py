@@ -56,10 +56,20 @@ def route_after_scheduler(state: TravelAgentState):
     scheduler_result = state.get("scheduler_result")
     replan_count = state.get("replan_count", 0)
     max_replan_attempts = state.get("max_replan_attempts", 3)
-    policy = state.get("execution_policy", "fail_fast")
+    policy = state.get("execution_policy") or "best_effort"
     tasks = state["execution_plan"].tasks
     
-    # 1. Evaluate failures
+    # 1. Check if all tasks are completed
+    if len(scheduler_result.completed_tasks) == len(tasks):
+        logger.info("Execution plan completed successfully with all tasks completed.")
+        return "responder"
+        
+    # 2. Dynamic Parallel Task Scheduler (concurrency resolution)
+    if scheduler_result.has_ready_tasks:
+        logger.info(f"Scheduling {len(scheduler_result.ready_tasks)} parallel execution task(s): {scheduler_result.ready_tasks}")
+        return [Send("execute_task", {"task_id": t_id, "task": tasks[t_id]}) for t_id in scheduler_result.ready_tasks]
+        
+    # 3. Evaluate failures when no ready tasks remain
     if scheduler_result.failed_tasks:
         if policy == "fail_fast":
             logger.warning("Fail-fast policy triggered by task failure. Aborting execution loop.")
@@ -71,16 +81,6 @@ def route_after_scheduler(state: TravelAgentState):
             
         logger.info(f"Replanning attempt {replan_count + 1}/{max_replan_attempts} triggered by task failure.")
         return "planner"
-        
-    # 2. Check if all tasks are completed
-    if len(scheduler_result.completed_tasks) == len(tasks):
-        logger.info("Execution plan completed successfully with all tasks completed (none failed).")
-        return "responder"
-        
-    # 3. Dynamic Parallel Task Scheduler (concurrency resolution)
-    if scheduler_result.has_ready_tasks:
-        logger.info(f"Scheduling {len(scheduler_result.ready_tasks)} parallel execution task(s): {scheduler_result.ready_tasks}")
-        return [Send("execute_task", {"task_id": t_id, "task": tasks[t_id]}) for t_id in scheduler_result.ready_tasks]
         
     # 4. Deadlock / Finish fallback
     if scheduler_result.waiting_tasks or scheduler_result.blocked_tasks:
@@ -152,7 +152,7 @@ class CoordinatorAgent:
         self,
         user_goal: str,
         on_progress: Callable[[ProgressEvent], None] = None,
-        policy: ExecutionPolicy = ExecutionPolicy.FAIL_FAST,
+        policy: ExecutionPolicy = ExecutionPolicy.BEST_EFFORT,
     ) -> str:
         """Run the travel agent workflow via compiled LangGraph."""
         logger.info(f"Invoking Travel Agent graph for query: '{user_goal}'")

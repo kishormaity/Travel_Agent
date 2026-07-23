@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Any, List, Dict, Optional
+from typing import Any, List, Dict, Optional, Union
 
 # Weather API response validation models
 class WeatherLocation(BaseModel):
@@ -73,7 +73,7 @@ class PlacesResponseModel(BaseModel):
 
 # Maps / Routing API (Geoapify) response validation models
 class MapsStep(BaseModel):
-    instruction: Optional[str] = None
+    instruction: Optional[Union[str, dict]] = None
     distance: Optional[float] = None
 
 class MapsLeg(BaseModel):
