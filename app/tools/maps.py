@@ -1,23 +1,29 @@
 from loguru import logger
 from langchain_core.tools import tool
 from app.services.maps_service import MapsService
+from app.schemas.tool_result import ToolResult
 
 _maps_service = MapsService()
 
 
 @tool
-def get_route(origin: str, destination: str, mode: str = "drive") -> dict:
+def get_route(origin: str, destination: str, mode: str = "drive") -> ToolResult:
     """Get driving or transit route and distance between two locations."""
     logger.info(f"Maps Tool invoked (origin='{origin}', destination='{destination}', mode='{mode}')")
-    return _maps_service.get_route(
-        origin=origin,
-        destination=destination,
-        mode=mode,
-    )
+    try:
+        data = _maps_service.get_route(
+            origin=origin,
+            destination=destination,
+            mode=mode,
+        )
+        return ToolResult(success=True, data=data)
+    except Exception as e:
+        logger.warning(f"Maps Tool failed: {e}")
+        return ToolResult(success=False, error=str(e), data={})
 
 
 class MapsTool:
-    def get_route(self, origin: str, destination: str, mode: str = "drive") -> dict:
+    def get_route(self, origin: str, destination: str, mode: str = "drive") -> ToolResult:
         return get_route.invoke({
             "origin": origin,
             "destination": destination,

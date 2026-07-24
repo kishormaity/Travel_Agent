@@ -61,6 +61,15 @@ class GeocodingService:
 
             features = validated.features
 
+            if not features and ", India" not in city:
+                params["text"] = f"{city}, India"
+                with httpx.Client(timeout=10.0) as client:
+                    res2 = client.get(self.BASE_URL, params=params)
+                    if res2.status_code == 200:
+                        data2 = res2.json()
+                        validated2 = GeocodingResponseModel.model_validate(data2)
+                        features = validated2.features
+
             if not features:
                 raise ValueError(
                     f"No location found for '{city}'."

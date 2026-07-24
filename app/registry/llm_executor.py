@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from loguru import logger
 from langchain_core.prompts import ChatPromptTemplate
-from app.llm import get_llm
+from app.core import get_llm
 from app.prompts import EXECUTION_SYSTEM_PROMPT
 
 

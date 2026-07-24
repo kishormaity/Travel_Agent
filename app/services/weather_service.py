@@ -16,6 +16,48 @@ class WeatherService:
         self.api_key = WEATHER_API_KEY
         self.base_url = WEATHER_API_BASE_URL
 
+    async def get_current_weather_async(self, city: str) -> dict:
+        """
+        Asynchronously fetch the current weather for a given city.
+        """
+        endpoint = f"{self.base_url}/current.json"
+        params = {"key": self.api_key, "q": city, "aqi": "no"}
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(endpoint, params=params)
+                if response.status_code != 200:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("error", {}).get("message")
+                        if error_msg:
+                            raise Exception(f"Weather API error message: {error_msg}")
+                    except Exception as e:
+                        if "Weather API error message" in str(e):
+                            raise e
+
+                response.raise_for_status()
+                data = response.json()
+                from app.schemas.api.response_models import WeatherResponseModel
+                validated = WeatherResponseModel.model_validate(data)
+
+                logger.info(f"Successfully fetched weather async for city='{city}'")
+                return {
+                    "city": validated.location.name,
+                    "region": validated.location.region,
+                    "country": validated.location.country,
+                    "temperature_c": validated.current.temp_c,
+                    "temperature_f": validated.current.temp_f,
+                    "condition": validated.current.condition.text,
+                    "humidity": validated.current.humidity,
+                    "wind_kph": validated.current.wind_kph,
+                    "feelslike_c": validated.current.feelslike_c,
+                    "uv_index": validated.current.uv,
+                }
+        except Exception as e:
+            logger.warning(f"Async weather fetch failed for {city}: {e}")
+            return self.get_current_weather(city)
+
     def get_current_weather(self, city: str) -> dict:
         """
         Fetch the current weather for a given city.

@@ -3,7 +3,7 @@ from datetime import datetime
 from loguru import logger
 
 from app.config import MODEL_NAME, RESPONSE_TEMPERATURE, MAX_TOKENS
-from app.llm import get_llm
+from app.core import get_llm
 from app.prompts import RESPONSE_SYSTEM_PROMPT
 from app.schemas.planner import ExecutionPlan
 from app.utils import summarize_result_with_llm

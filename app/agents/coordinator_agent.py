@@ -6,7 +6,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.constants import Send
 
 from app.agents.response_agent import ResponseAgent
-from app.llm import get_llm
+from app.core import get_llm
 from app.memory import ConversationMemory
 from app.schemas.planner import ProgressEvent, ExecutionPolicy
 

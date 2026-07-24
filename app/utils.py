@@ -98,6 +98,9 @@ def summarize_result_with_llm(
     if result is None:
         return None
 
+    if hasattr(result, "model_dump"):
+        result = result.model_dump()
+
     # Convert dict/list to string for size evaluation
     result_str = json.dumps(result, default=str) if isinstance(result, (dict, list)) else str(result)
 
@@ -107,7 +110,7 @@ def summarize_result_with_llm(
 
     try:
         if llm_client is None:
-            from app.llm.client import get_llm
+            from app.core import get_llm
             llm_client = get_llm()
 
         prompt = (
