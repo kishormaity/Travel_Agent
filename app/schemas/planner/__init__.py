@@ -5,6 +5,7 @@ from app.schemas.planner.task import (
 
 from app.schemas.planner.execution_plan import (
     ExecutionPlan,
+    PlanStatus,
 )
 
 from app.schemas.planner.planner_task import (
@@ -27,6 +28,7 @@ __all__ = [
     "Task",
     "TaskStatus",
     "ExecutionPlan",
+    "PlanStatus",
     "PlannerTask",
     "PlannerResponse",
     "ProgressEvent",

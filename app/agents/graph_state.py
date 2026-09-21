@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 from app.schemas.planner.task import Task, TaskStatus
+from app.schemas.planner.execution_plan import ExecutionPlan, PlanStatus
 from app.agents.retry_policy import RetryPolicy
 
 # ==========================
@@ -26,11 +27,6 @@ class Recoverability(str, Enum):
     RECOVERABLE = "recoverable"
     FATAL = "fatal"
 
-class PlanStatus(str, Enum):
-    ACTIVE = "active"
-    SUPERSEDED = "superseded"
-    FAILED = "failed"
-    COMPLETED = "completed"
 
 # ==========================
 # Travel Framework Schemas
@@ -114,16 +110,6 @@ class ExecutorResult(BaseModel):
     error: str | None = None
     retryable: bool = False
     metadata: ExecutorMetadata = Field(default_factory=ExecutorMetadata)
-
-class ExecutionPlan(BaseModel):
-    plan_id: UUID = Field(default_factory=uuid4)
-    tasks: dict[int, Task] = Field(default_factory=dict)
-    version: int = 1
-    parent_version: int | None = None
-    planning_rationale: str | None = None
-    planner_model: str | None = None
-    plan_status: PlanStatus = PlanStatus.ACTIVE
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class PlanningPipelineResult(BaseModel):
     execution_plan: ExecutionPlan

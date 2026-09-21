@@ -10,16 +10,15 @@ _maps_service = MapsService()
 def get_route(origin: str, destination: str, mode: str = "drive") -> ToolResult:
     """Get driving or transit route and distance between two locations."""
     logger.info(f"Maps Tool invoked (origin='{origin}', destination='{destination}', mode='{mode}')")
-    try:
-        data = _maps_service.get_route(
-            origin=origin,
-            destination=destination,
-            mode=mode,
-        )
-        return ToolResult(success=True, data=data)
-    except Exception as e:
-        logger.warning(f"Maps Tool failed: {e}")
-        return ToolResult(success=False, error=str(e), data={})
+    if not origin or not str(origin).strip() or not destination or not str(destination).strip():
+        return ToolResult(success=False, error="Origin and destination cannot be empty.", data={})
+    data = _maps_service.get_route(
+        origin=origin,
+        destination=destination,
+        mode=mode,
+    )
+    return ToolResult(success=True, data=data)
+
 
 
 class MapsTool:

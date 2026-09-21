@@ -171,12 +171,18 @@ def parse_and_map_node(state: PlanningPipelineState, config: RunnableConfig) -> 
             status=TaskStatus.PENDING
         )
         
+    # In replanning, merge existing tasks with new tasks so historical results and dependency lineage are preserved
+    if replan_count > 0 and execution_plan and execution_plan.tasks:
+        merged_tasks = {**execution_plan.tasks, **new_tasks}
+    else:
+        merged_tasks = new_tasks
+        
     next_version = 1 if replan_count == 0 else execution_plan.version + 1
     
     val_result = ValidationResult(valid=True)
     
     out_plan = ExecutionPlan(
-        tasks=new_tasks,
+        tasks=merged_tasks,
         version=next_version,
         parent_version=execution_plan.version if replan_count > 0 else None,
         planning_rationale="Initial plan generated" if replan_count == 0 else f"Replanned next steps (Replan {replan_count})",

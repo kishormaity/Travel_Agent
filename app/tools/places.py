@@ -10,16 +10,15 @@ _places_service = PlacesService()
 def search_places(city: str, category: str = "tourism.sights", limit: int = 5) -> ToolResult:
     """Search tourist attractions, places of interest, and monuments in a city."""
     logger.info(f"Places Tool invoked for city='{city}', category='{category}', limit={limit}")
-    try:
-        data = _places_service.search_places(
-            city=city,
-            category=category,
-            limit=limit,
-        )
-        return ToolResult(success=True, data=data)
-    except Exception as e:
-        logger.warning(f"Places Tool failed: {e}")
-        return ToolResult(success=False, error=str(e), data=[])
+    if not city or not str(city).strip():
+        return ToolResult(success=False, error="City name cannot be empty.", data=[])
+    data = _places_service.search_places(
+        city=city,
+        category=category,
+        limit=limit,
+    )
+    return ToolResult(success=True, data=data)
+
 
 
 class PlacesTool:

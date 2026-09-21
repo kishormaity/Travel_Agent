@@ -11,12 +11,17 @@ wheels/
 .mypy_cache/
 .ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
+
+# Logs
+*.log
 
 # Local environment and secrets
 .venv/
 .env
 .env.*
+!.env.example
 
 # Editor settings
 .vscode/

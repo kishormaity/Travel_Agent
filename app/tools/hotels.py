@@ -10,16 +10,15 @@ _places_service = PlacesService()
 def search_hotels(city: str, limit: int = 5) -> ToolResult:
     """Search accommodations and hotels in a city."""
     logger.info(f"Hotel Tool invoked for city='{city}', limit={limit}")
-    try:
-        data = _places_service.search_places(
-            city=city,
-            category="hotel",
-            limit=limit,
-        )
-        return ToolResult(success=True, data=data)
-    except Exception as e:
-        logger.warning(f"Hotel Tool failed: {e}")
-        return ToolResult(success=False, error=str(e), data=[])
+    if not city or not str(city).strip():
+        return ToolResult(success=False, error="City name cannot be empty.", data=[])
+    data = _places_service.search_places(
+        city=city,
+        category="hotel",
+        limit=limit,
+    )
+    return ToolResult(success=True, data=data)
+
 
 
 class HotelTool:

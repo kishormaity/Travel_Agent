@@ -74,11 +74,7 @@ class PlacesService:
 
             with httpx.Client(timeout=10.0) as client:
                 response = client.get(self.BASE_URL, params=params)
-
-                if response.status_code != 200:
-                    logger.warning(f"Geoapify Places API returned status {response.status_code} for city '{city}'")
-                    return []
-
+                response.raise_for_status()
                 data = response.json()
                 from app.schemas.api.response_models import PlacesResponseModel
                 validated = PlacesResponseModel.model_validate(data)
@@ -99,6 +95,9 @@ class PlacesService:
                 logger.info(f"Found {len(places)} {cat_key}(s) in {city}")
                 return places
 
-        except Exception as error:
-            logger.warning(f"Failed to fetch places for city '{city}', category '{category}': {error}")
-            return []
+        except (httpx.HTTPStatusError, httpx.RequestError) as error:
+            logger.error(f"Geoapify Places API network/HTTP error for city '{city}': {error}")
+            raise
+        except ValueError as val_err:
+            logger.warning(f"Location resolution failed for '{city}': {val_err}")
+            return []

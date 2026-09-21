@@ -19,19 +19,22 @@ def search_flights(
     logger.info(
         f"Flight Tool invoked (departure={departure_iata}, arrival={arrival_iata}, date={flight_date})"
     )
-    try:
-        data = _flight_service.search_flights(
-            departure_iata=departure_iata,
-            arrival_iata=arrival_iata,
-            flight_number=flight_number,
-            airline_iata=airline_iata,
-            flight_date=flight_date,
-            limit=limit,
+    if not departure_iata and not arrival_iata and not flight_number and not airline_iata:
+        return ToolResult(
+            success=False,
+            error="At least one search filter (departure_iata, arrival_iata, flight_number, airline_iata) is required.",
+            data=[]
         )
-        return ToolResult(success=True, data=data)
-    except Exception as e:
-        logger.warning(f"Flight Tool failed: {e}")
-        return ToolResult(success=False, error=str(e), data=[])
+    data = _flight_service.search_flights(
+        departure_iata=departure_iata,
+        arrival_iata=arrival_iata,
+        flight_number=flight_number,
+        airline_iata=airline_iata,
+        flight_date=flight_date,
+        limit=limit,
+    )
+    return ToolResult(success=True, data=data)
+
 
 
 class FlightTool:

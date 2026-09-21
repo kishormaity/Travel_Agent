@@ -10,12 +10,10 @@ _weather_service = WeatherService()
 def get_current_weather(city: str) -> ToolResult:
     """Get the current weather information for a given city."""
     logger.info(f"Weather Tool invoked for city='{city}'")
-    try:
-        data = _weather_service.get_current_weather(city)
-        return ToolResult(success=True, data=data)
-    except Exception as e:
-        logger.warning(f"Weather Tool failed for city='{city}': {e}")
-        return ToolResult(success=False, error=str(e), data={})
+    if not city or not str(city).strip():
+        return ToolResult(success=False, error="City name cannot be empty.", data={})
+    data = _weather_service.get_current_weather(city)
+    return ToolResult(success=True, data=data)
 
 
 class WeatherTool:

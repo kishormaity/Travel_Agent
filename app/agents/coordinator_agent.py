@@ -3,7 +3,7 @@ from loguru import logger
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
-from langgraph.constants import Send
+from langgraph.types import Send
 
 from app.agents.response_agent import ResponseAgent
 from app.core import get_llm

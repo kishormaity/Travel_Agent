@@ -152,21 +152,7 @@ def plan_validator_node(state: TravelAgentState, config: RunnableConfig) -> dict
 
     try:
         # 2. Structural Validation
-        try:
-            _detect_dependency_cycles(tasks)
-        except ValueError as cycle_err:
-            err = f"Circular Reference Check Failed: {str(cycle_err)}"
-            return {
-                "validation_result": ValidationResult(
-                    valid=False,
-                    recoverable=Recoverability.RECOVERABLE,
-                    error_type=ValidationErrorType.CIRCULAR_REFERENCE,
-                    message=err
-                ),
-                "final_response": err
-            }
-
-        # Verify dependencies and duplicate checks
+        # Check self-dependencies and unknown dependencies first
         for t_id, task in tasks.items():
             if t_id in task.depends_on:
                 err = f"Self-dependency Check Failed: Task {t_id} depends on itself."
@@ -193,11 +179,34 @@ def plan_validator_node(state: TravelAgentState, config: RunnableConfig) -> dict
                         "final_response": err
                     }
 
+        # Check for circular dependency cycles
+        try:
+            _detect_dependency_cycles(tasks)
+        except ValueError as cycle_err:
+            err = f"Circular Reference Check Failed: {str(cycle_err)}"
+            return {
+                "validation_result": ValidationResult(
+                    valid=False,
+                    recoverable=Recoverability.RECOVERABLE,
+                    error_type=ValidationErrorType.CIRCULAR_REFERENCE,
+                    message=err
+                ),
+                "final_response": err
+            }
+
         # 3. Semantic Validation
         from app.registry.tool_registry import AVAILABLE_TOOLS, LANGCHAIN_TOOLS
         required_arguments = {}
         for tool in LANGCHAIN_TOOLS:
-            schema = tool.args_schema.schema() if tool.args_schema else {}
+            if tool.args_schema:
+                if hasattr(tool.args_schema, "model_json_schema"):
+                    schema = tool.args_schema.model_json_schema()
+                elif hasattr(tool.args_schema, "schema"):
+                    schema = tool.args_schema.schema()
+                else:
+                    schema = {}
+            else:
+                schema = {}
             required_arguments[tool.name] = schema.get("required", [])
 
         for t_id, task in tasks.items():
@@ -213,19 +222,20 @@ def plan_validator_node(state: TravelAgentState, config: RunnableConfig) -> dict
                     "final_response": err
                 }
                 
-            required_params = required_arguments.get(task.tool_name, [])
-            missing = [p for p in required_params if p not in task.arguments]
-            if missing:
-                err = f"Arguments Check Failed: Task {t_id} ({task.tool_name}) is missing parameters: {missing}"
-                return {
-                    "validation_result": ValidationResult(
-                        valid=False,
-                        recoverable=Recoverability.RECOVERABLE,
-                        error_type=ValidationErrorType.INVALID_ARGUMENTS,
-                        message=err
-                    ),
-                    "final_response": err
-                }
+            if task.tool_name in required_arguments:
+                required_params = required_arguments.get(task.tool_name, [])
+                missing = [p for p in required_params if p not in task.arguments]
+                if missing:
+                    err = f"Arguments Check Failed: Task {t_id} ({task.tool_name}) is missing parameters: {missing}"
+                    return {
+                        "validation_result": ValidationResult(
+                            valid=False,
+                            recoverable=Recoverability.RECOVERABLE,
+                            error_type=ValidationErrorType.INVALID_ARGUMENTS,
+                            message=err
+                        ),
+                        "final_response": err
+                    }
 
     except Exception as system_error:
         err = f"Non-recoverable System Validation Error: {str(system_error)}"
@@ -254,7 +264,8 @@ def _propagate_failure(tasks: dict[int, Task], failed_task_id: int, visited: set
         if task.status in (TaskStatus.PENDING, TaskStatus.READY) and failed_task_id in task.depends_on:
             updated_task = task.model_copy(update={
                 "status": TaskStatus.FAILED,
-                "error": f"Parent dependency task {failed_task_id} failed."
+                "error": f"Parent dependency task {failed_task_id} failed.",
+                "failure_type": "dependency",
             })
             updates[t_id] = updated_task
             updates.update(_propagate_failure(tasks, t_id, visited))

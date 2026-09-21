@@ -141,28 +141,26 @@ def run_executor_node(state: TaskExecutionState, config: RunnableConfig) -> dict
     except Exception as e:
         latency = (time.time() - start_time) * 1000.0
         
-        # Determine retry capability for exception type
-        is_retryable = False
-        if isinstance(e, (httpx.RequestError, httpx.HTTPStatusError, TimeoutError, ConnectionError)):
-            is_retryable = True
-            
-        retry_policy = config["configurable"].get("retry_policy", RetryPolicy())
+        # Determine retry capability via resilience policy
+        retry_policy = config["configurable"].get("retry_policy") or RetryPolicy()
+        is_retryable = retry_policy.is_retryable(e)
         
-        # If retryable and attempt limit not reached, keep status RUNNING/PENDING and compute backoff delay
+        # If retryable and attempt limit not reached, keep status RUNNING and compute backoff delay
         if is_retryable and attempt < retry_policy.max_attempts:
             task_status = TaskStatus.RUNNING
-            delay = retry_policy.initial_delay * (retry_policy.backoff_factor ** (attempt - 1))
-            jitter = random.uniform(retry_policy.jitter_min, retry_policy.jitter_max)
-            next_delay = delay + jitter
+            next_delay = retry_policy.calculate_delay(attempt)
         else:
             task_status = TaskStatus.FAILED
             next_delay = 0.0
             
         logger.warning(f"Task {task.id} attempt {attempt} failed: {e}. Retryable: {is_retryable}")
         
+        failure_type = "infrastructure" if is_retryable else "logical"
         failed_task = task_running.model_copy(update={
             "status": task_status,
-            "error": str(e)
+            "error": str(e),
+            "retry_count": attempt - 1,
+            "failure_type": failure_type if task_status == TaskStatus.FAILED else None,
         })
         
         exec_metadata = ExecutorMetadata(

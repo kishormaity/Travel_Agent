@@ -10,16 +10,17 @@ _currency_service = CurrencyService()
 def convert_currency(amount: float, from_currency: str, to_currency: str) -> ToolResult:
     """Convert money from one currency into another (e.g. 30000 INR to USD)."""
     logger.info(f"Currency Tool invoked: {amount} {from_currency} -> {to_currency}")
-    try:
-        data = _currency_service.convert_currency(
-            amount=amount,
-            from_currency=from_currency,
-            to_currency=to_currency,
-        )
-        return ToolResult(success=True, data=data)
-    except Exception as e:
-        logger.warning(f"Currency Tool failed: {e}")
-        return ToolResult(success=False, error=str(e), data={})
+    if amount <= 0:
+        return ToolResult(success=False, error="Amount must be greater than zero.", data={})
+    if not from_currency or not str(from_currency).strip() or not to_currency or not str(to_currency).strip():
+        return ToolResult(success=False, error="Source and target currencies cannot be empty.", data={})
+    data = _currency_service.convert_currency(
+        amount=amount,
+        from_currency=from_currency,
+        to_currency=to_currency,
+    )
+    return ToolResult(success=True, data=data)
+
 
 
 class CurrencyTool:
