@@ -1,57 +1,46 @@
-from loguru import logger
+from typing import Optional
 from langchain_core.tools import tool
-from app.services.flight_service import FlightService
 from app.schemas.tool_result import ToolResult
 
-_flight_service = FlightService()
+_flight_agent = None
+
+
+def _get_flight_agent():
+    global _flight_agent
+    if _flight_agent is None:
+        from app.agents.flight.agent import FlightAgent
+        _flight_agent = FlightAgent()
+    return _flight_agent
 
 
 @tool
 def search_flights(
-    departure_iata: str | None = None,
-    arrival_iata: str | None = None,
-    flight_number: str | None = None,
-    airline_iata: str | None = None,
-    flight_date: str | None = None,
+    departure_iata: Optional[str] = None,
+    arrival_iata: Optional[str] = None,
+    flight_date: Optional[str] = None,
+    return_date: Optional[str] = None,
+    adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
+    trip_class: str = "Y",
+    currency: Optional[str] = "INR",
     limit: int = 10,
+    **kwargs,
 ) -> ToolResult:
-    """Search flights using AviationStack by departure/arrival airport IATA codes or flight date."""
-    logger.info(
-        f"Flight Tool invoked (departure={departure_iata}, arrival={arrival_iata}, date={flight_date})"
-    )
-    if not departure_iata and not arrival_iata and not flight_number and not airline_iata:
-        return ToolResult(
-            success=False,
-            error="At least one search filter (departure_iata, arrival_iata, flight_number, airline_iata) is required.",
-            data=[]
-        )
-    data = _flight_service.search_flights(
+    """Search live flights using OctoTrip MCP by departure/arrival airport IATA codes, departure/return dates, passenger counts (adults, children, infants), cabin class ('Y' for economy, 'C' for business), and currency (defaults to INR)."""
+    res = _get_flight_agent().execute(
         departure_iata=departure_iata,
         arrival_iata=arrival_iata,
-        flight_number=flight_number,
-        airline_iata=airline_iata,
         flight_date=flight_date,
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
+        trip_class=trip_class,
+        currency=currency,
         limit=limit,
+        **kwargs,
     )
-    return ToolResult(success=True, data=data)
-
-
-
-class FlightTool:
-    def search_flights(
-        self,
-        departure_iata: str | None = None,
-        arrival_iata: str | None = None,
-        flight_number: str | None = None,
-        airline_iata: str | None = None,
-        flight_date: str | None = None,
-        limit: int = 10,
-    ) -> ToolResult:
-        return search_flights.invoke({
-            "departure_iata": departure_iata,
-            "arrival_iata": arrival_iata,
-            "flight_number": flight_number,
-            "airline_iata": airline_iata,
-            "flight_date": flight_date,
-            "limit": limit,
-        })
+    if not res.success:
+        return ToolResult(success=False, error=res.error or "Error searching flights", data=[])
+    return ToolResult(success=True, data=res.flights)

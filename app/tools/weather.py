@@ -6,14 +6,50 @@ from app.schemas.tool_result import ToolResult
 _weather_service = WeatherService()
 
 
+def normalize_weather_city(city: str) -> str:
+    """Normalizes city names for weather tool, stripping country and fixing typos."""
+    if not city:
+        return ""
+    clean = str(city).strip()
+    # Strip country/state if present (e.g., 'Jodhpur, Rajasthan' -> 'Jodhpur')
+    if "," in clean:
+        clean = clean.split(",")[0].strip()
+
+    clean_lower = clean.lower()
+    typos = {
+        "jodhur": "Jodhpur",
+        "jodhpu": "Jodhpur",
+        "jodpur": "Jodhpur",
+        "jaipue": "Jaipur",
+        "jaipr": "Jaipur",
+        "udipur": "Udaipur",
+        "udaipr": "Udaipur",
+        "kolkatta": "Kolkata",
+        "banglore": "Bengaluru",
+        "bengalor": "Bengaluru",
+        "mumbay": "Mumbai",
+        "delhy": "Delhi",
+    }
+    if clean_lower in typos:
+        logger.info(f"[WeatherTool] Corrected city typo '{city}' -> '{typos[clean_lower]}'")
+        return typos[clean_lower]
+    return clean.title() if len(clean) > 3 else clean
+
+
 @tool
 def get_current_weather(city: str) -> ToolResult:
     """Get the current weather information for a given city."""
     logger.info(f"Weather Tool invoked for city='{city}'")
     if not city or not str(city).strip():
         return ToolResult(success=False, error="City name cannot be empty.", data={})
-    data = _weather_service.get_current_weather(city)
-    return ToolResult(success=True, data=data)
+
+    norm_city = normalize_weather_city(city)
+    try:
+        data = _weather_service.get_current_weather(norm_city)
+        return ToolResult(success=True, data=data)
+    except Exception as e:
+        logger.warning(f"[WeatherTool] Error fetching weather for '{city}' (normalized: '{norm_city}'): {e}")
+        return ToolResult(success=False, error=str(e), data={})
 
 
 class WeatherTool:

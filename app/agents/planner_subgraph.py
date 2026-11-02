@@ -37,10 +37,14 @@ def build_prompt_node(state: PlanningPipelineState) -> dict:
     """Prepares prompt templates and system variables for the planner LLM."""
     replan_count = state.get("replan_count", 0)
     val_result = state.get("validation_result")
+    execution_plan = state.get("execution_plan")
     
-    # If recovery from a validation failure is needed, increment the replan counter
+    # If recovery from validation failure or existing plan execution failure, increment replan counter
+    has_existing_tasks = bool(execution_plan and execution_plan.tasks and len(execution_plan.tasks) > 0)
     if val_result and not val_result.valid:
         replan_count += 1
+    elif has_existing_tasks and replan_count == 0:
+        replan_count = 1
         
     user_request = state["user_request"]
     planner_context = state.get("planner_context")
@@ -116,6 +120,52 @@ def query_llm_node(state: PlanningPipelineState, config: RunnableConfig) -> dict
     response = llm_client.invoke(prompt_messages)
     return {"llm_response": response.content}
 
+def _is_task_equivalent(tool1: str, args1: dict, tool2: str, args2: dict) -> bool:
+    """Evaluates whether two tasks perform the identical logical operation."""
+    if tool1 != tool2:
+        return False
+    args1 = args1 or {}
+    args2 = args2 or {}
+
+    from app.services.request_normalizer import resolve_airport_code, normalize_city_name
+    from app.tools.weather import normalize_weather_city
+
+    if tool1 == "search_flights":
+        o1 = resolve_airport_code(str(args1.get("departure_iata") or args1.get("origin") or ""))
+        o2 = resolve_airport_code(str(args2.get("departure_iata") or args2.get("origin") or ""))
+        d1 = resolve_airport_code(str(args1.get("arrival_iata") or args1.get("destination") or ""))
+        d2 = resolve_airport_code(str(args2.get("arrival_iata") or args2.get("destination") or ""))
+        date1 = str(args1.get("flight_date") or args1.get("departure_date") or "")
+        date2 = str(args2.get("flight_date") or args2.get("departure_date") or "")
+        ret1 = str(args1.get("return_date") or "")
+        ret2 = str(args2.get("return_date") or "")
+        return o1 == o2 and d1 == d2 and date1 == date2 and ret1 == ret2
+
+    if tool1 in ("search_hotels", "search_places"):
+        c1 = normalize_city_name(str(args1.get("city") or "")).lower()
+        c2 = normalize_city_name(str(args2.get("city") or "")).lower()
+        return c1 == c2 and bool(c1)
+
+    if tool1 == "get_current_weather":
+        c1 = normalize_weather_city(str(args1.get("city") or "")).lower()
+        c2 = normalize_weather_city(str(args2.get("city") or "")).lower()
+        return c1 == c2 and bool(c1)
+
+    if tool1 == "convert_currency":
+        return (
+            args1.get("from_currency") == args2.get("from_currency")
+            and args1.get("to_currency") == args2.get("to_currency")
+        )
+
+    if tool1 == "get_route":
+        return (
+            args1.get("origin") == args2.get("origin")
+            and args1.get("destination") == args2.get("destination")
+        )
+
+    return args1 == args2
+
+
 def parse_and_map_node(state: PlanningPipelineState, config: RunnableConfig) -> dict:
     """Extracts JSON, runs Pydantic validations, and maps task IDs sequentially in code."""
     llm_response = state["llm_response"]
@@ -154,21 +204,67 @@ def parse_and_map_node(state: PlanningPipelineState, config: RunnableConfig) -> 
             )
         }
         
-    # Map new tasks deterministically
-    max_existing_id = max(execution_plan.tasks.keys(), default=0)
+    # Map new tasks deterministically, preventing duplicate re-execution of COMPLETED tasks
+    max_existing_id = max(execution_plan.tasks.keys(), default=0) if execution_plan and execution_plan.tasks else 0
     new_tasks = {}
+    completed_existing = (
+        {t_id: t for t_id, t in execution_plan.tasks.items() if t.status == TaskStatus.COMPLETED and t.result is not None}
+        if (replan_count > 0 and execution_plan and execution_plan.tasks)
+        else {}
+    )
+
+    id_remap: dict[int, int] = {}  # newly generated 1-based index -> existing completed id or new id
 
     for i, planner_task in enumerate(parsed.tasks):
-        g_id = max_existing_id + i + 1
+        temp_id = i + 1
+
+        # Check if identical task already completed in execution plan
+        matched_completed = None
+        for c_id, c_task in completed_existing.items():
+            if _is_task_equivalent(c_task.tool_name, c_task.arguments, planner_task.tool_name, planner_task.arguments):
+                matched_completed = c_task
+                break
+
+        if matched_completed is not None:
+            logger.info(
+                f"[PlannerDeduplication] Task '{planner_task.description}' ({planner_task.tool_name}) "
+                f"matches already COMPLETED Task {matched_completed.id}. Preserving successful output without re-executing."
+            )
+            id_remap[temp_id] = matched_completed.id
+            continue
+
+        g_id = max_existing_id + len(new_tasks) + 1
+        id_remap[temp_id] = g_id
+
+        # Remap dependencies to point to existing completed IDs or new IDs
+        remapped_deps = []
+        for dep in planner_task.depends_on:
+            # 1. Never allow self-dependency
+            if dep == g_id:
+                continue
+
+            # 2. If dep explicitly references an existing task in execution_plan, preserve that historical task ID
+            if execution_plan and dep in execution_plan.tasks:
+                remapped_deps.append(dep)
+            # 3. If dep references a task within the newly generated batch by relative 1-based index
+            elif dep in id_remap:
+                target_dep = id_remap[dep]
+                if target_dep != g_id:
+                    remapped_deps.append(target_dep)
+            # 4. If dep references an already-created new task in new_tasks
+            elif dep in new_tasks:
+                remapped_deps.append(dep)
+            else:
+                remapped_deps.append(dep)
 
         new_tasks[g_id] = Task(
             id=g_id,
             description=planner_task.description,
             tool_name=planner_task.tool_name,
             arguments=planner_task.arguments,
-            depends_on=planner_task.depends_on,
+            depends_on=remapped_deps,
             priority=planner_task.priority,
-            status=TaskStatus.PENDING
+            status=TaskStatus.PENDING,
         )
         
     # In replanning, merge existing tasks with new tasks so historical results and dependency lineage are preserved

@@ -1,3 +1,4 @@
+import math
 import httpx
 from loguru import logger
 
@@ -6,6 +7,21 @@ from app.config import (
     GEOAPIFY_ROUTING_API_BASE_URL,
 )
 from app.services.geocoding_service import GeocodingService
+
+
+def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate the great circle distance in kilometers between two points."""
+    R = 6371.0  # Earth's radius in km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
 
 class MapsService:
@@ -32,7 +48,7 @@ class MapsService:
         mode: str = "drive",
     ) -> dict:
         """
-        Get route information between two places.
+        Get route information between two places with geographic sanity validation.
         """
 
         if not origin.strip():
@@ -57,6 +73,31 @@ class MapsService:
                 destination
             )
         )
+
+        # Great-circle distance check
+        straight_line_km = haversine_distance_km(
+            origin_location["latitude"],
+            origin_location["longitude"],
+            destination_location["latitude"],
+            destination_location["longitude"],
+        )
+
+        # Reject impossible driving routes (e.g. crossing oceans or > 3000 km)
+        if straight_line_km > 3000.0:
+            logger.warning(
+                f"Geographically impossible driving route requested from '{origin}' ({origin_location.get('country')}) "
+                f"to '{destination}' ({destination_location.get('country')}): straight-line distance {straight_line_km:.1f} km."
+            )
+            return {
+                "status": "no_route_found",
+                "origin": origin,
+                "destination": destination,
+                "mode": mode,
+                "message": (
+                    f"Direct driving route between '{origin}' and '{destination}' is geographically impossible "
+                    f"(straight-line distance {straight_line_km:.1f} km across continents/oceans). Flight travel is required."
+                ),
+            }
 
         waypoints = (
             f"{origin_location['latitude']},"
@@ -113,6 +154,24 @@ class MapsService:
 
             distance = properties.distance
             time = properties.time
+            distance_km = round(distance / 1000, 2)
+
+            # Check if road distance is implausible compared to straight-line distance
+            if distance_km > 3000.0 and straight_line_km < 1000.0:
+                logger.warning(
+                    f"Implausible route geometry detected between '{origin}' and '{destination}': "
+                    f"road distance {distance_km} km vs straight-line {straight_line_km:.1f} km."
+                )
+                return {
+                    "status": "no_route_found",
+                    "origin": origin,
+                    "destination": destination,
+                    "mode": mode,
+                    "message": (
+                        f"Calculated road route ({distance_km} km) is geographically implausible for '{origin}' to '{destination}' "
+                        f"(straight-line: {straight_line_km:.1f} km). Direct flights or trains recommended."
+                    ),
+                }
 
             instructions = []
 

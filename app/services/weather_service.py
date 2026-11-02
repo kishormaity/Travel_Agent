@@ -104,6 +104,9 @@ class WeatherService:
                     "country": validated.location.country,
                     "latitude": validated.location.lat,
                     "longitude": validated.location.lon,
+                    "data_type": "realtime_observation",
+                    "provider": "WeatherAPI.com (real-time observation)",
+                    "observation_time": validated.location.localtime,
                     "local_time": validated.location.localtime,
                     "temperature_c": validated.current.temp_c,
                     "temperature_f": validated.current.temp_f,
@@ -114,6 +117,8 @@ class WeatherService:
                     "feels_like_c": validated.current.feelslike_c,
                     "visibility_km": validated.current.vis_km,
                     "uv_index": validated.current.uv,
+                    "forecast_notice": "Real-time weather observation as of observation_time. Not a forecast for future travel months.",
+                    "historical_climate_data_available": False,
                 }
 
         except httpx.HTTPStatusError as error:

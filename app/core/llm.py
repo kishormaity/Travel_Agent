@@ -1,13 +1,17 @@
 from langchain.chat_models import init_chat_model
 from app.core.config import settings
 
-FALLBACK_MODELS = ["llama-3.1-8b-instant", "gemma2-9b-it"]
+FALLBACK_MODELS = [
+    m for m in (getattr(settings, "groq_fallback_models", None) or ["openai/gpt-oss-20b", "qwen/qwen3.8-27b"])
+    if m
+]
 
 
 def get_llm(
     temperature: float = 0.0,
     model_name: str | None = None,
     model_provider: str | None = None,
+    max_tokens: int | None = None,
 ):
     """
     Standard Provider-Agnostic LLM Factory using LangChain's universal init_chat_model.
@@ -17,6 +21,8 @@ def get_llm(
     model = model_name or settings.model_name
 
     kwargs = {}
+    if max_tokens:
+        kwargs["max_tokens"] = max_tokens
     if provider == "groq" and settings.groq_api_key:
         kwargs["groq_api_key"] = settings.groq_api_key
     elif provider == "openai" and settings.openai_api_key:

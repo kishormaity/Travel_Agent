@@ -49,16 +49,22 @@ class PlacesService:
         city: str,
         category: str = "tourism.attraction",
         limit: int = 5,
+        check_in_date: str = None,
+        check_out_date: str = None,
+        adults: int = 2,
+        rooms: int = None,
     ) -> list[dict]:
         """
-        Search places in a city with resilient category mapping and graceful fallback.
+        Search places or hotels in a city with resilient category mapping,
+        country-aware geocoding, and enriched accommodation metadata.
         """
         if not city or not city.strip():
             logger.warning("Empty city name provided to search_places.")
             return []
 
         cat_key = (category or "tourism.attraction").lower().strip()
-        mapped_category = self.CATEGORY_MAPPING.get(cat_key, "tourism.attraction")
+        is_hotel_query = cat_key in {"hotel", "hotels", "accommodation", "resort", "resorts"}
+        mapped_category = self.CATEGORY_MAPPING.get(cat_key, "accommodation.hotel" if is_hotel_query else "tourism.attraction")
 
         try:
             location = self.geocoding_service.get_coordinates(city)
@@ -82,15 +88,41 @@ class PlacesService:
                 places = []
                 for place in validated.features:
                     properties = place.properties
-                    places.append(
-                        {
-                            "name": properties.name or f"Attraction in {city}",
-                            "address": properties.formatted,
-                            "latitude": properties.lat,
-                            "longitude": properties.lon,
-                            "categories": properties.categories,
-                        }
-                    )
+                    prop_name = properties.name or (f"Accommodation in {city}" if is_hotel_query else f"Attraction in {city}")
+                    
+                    if is_hotel_query:
+                        rec_rooms = rooms if rooms else (1 if adults <= 2 else (2 if adults <= 4 else max(1, adults // 2)))
+                        places.append(
+                            {
+                                "property_name": prop_name,
+                                "name": prop_name,
+                                "address": properties.formatted,
+                                "city": location.get("city", city),
+                                "state": location.get("state"),
+                                "country": location.get("country"),
+                                "latitude": properties.lat,
+                                "longitude": properties.lon,
+                                "categories": properties.categories,
+                                "data_source": "geoapify_places",
+                                "live_rates_available": False,
+                                "pricing_notice": "Live dynamic room rates not provided by metadata discovery; verify on direct booking sites.",
+                                "check_in_date": check_in_date,
+                                "check_out_date": check_out_date,
+                                "adults": adults,
+                                "recommended_rooms": rec_rooms,
+                                "room_guidance": f"For {adults} adult(s), {rec_rooms} room(s) is typical. Do not assume {adults} separate rooms are needed.",
+                            }
+                        )
+                    else:
+                        places.append(
+                            {
+                                "name": prop_name,
+                                "address": properties.formatted,
+                                "latitude": properties.lat,
+                                "longitude": properties.lon,
+                                "categories": properties.categories,
+                            }
+                        )
 
                 logger.info(f"Found {len(places)} {cat_key}(s) in {city}")
                 return places

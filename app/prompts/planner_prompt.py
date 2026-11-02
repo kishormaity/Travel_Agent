@@ -32,6 +32,8 @@ Rules:
 - Arguments must match the tool parameters.
 - Never invent tool names.
 - Never invent arguments.
+- AIRPORT CODES: Always use canonical 3-letter IATA codes. Udaipur is ALWAYS UDR (never use UDI). Jodhpur is JDH. Jaipur is JAI. Delhi is DEL.
+- CITY SPELLINGS: Always use verified city spellings: 'Jodhpur' (never 'Jodhur'), 'Jaipur', 'Udaipur'.
 - REUSE EXISTING DATA: Check the Historical Conversation Summary. If valid data for a tool (e.g. flight schedules, weather forecasts, currency rates) has ALREADY been retrieved in previous turns and remains unchanged, DO NOT create tasks to call those tools again. Only generate tasks for missing information or updated user preferences (e.g. searching for seaside hotels).
 
 Example:
@@ -89,16 +91,14 @@ Your job is to REPLAN the remaining steps.
 Analyze the executed tasks, their results, and errors.
 Determine what needs to be done next to achieve the user's goal.
 
-CRITICAL INSTRUCTIONS FOR TASK DEPENDENCIES & IDs:
-1. Finished tasks in the history have their original global IDs (e.g. 1, 2, ...).
-2. The new tasks you generate will be assigned sequential IDs starting from {start_id}.
-3. If a new task depends on a finished task from execution history or another new task, specify its ID in "depends_on".
-
-You can:
-1. Retry or work around a FAILED task with different arguments or a different tool if appropriate.
-2. Do NOT retry, repeat, or replan for tasks that returned empty results (status is "empty_result"). Those are terminal states, and their empty results should be accepted and reported as-is.
-3. Do NOT include tasks that have already completed successfully or returned empty results unless they need to be rerun with different parameters.
-4. If the goal cannot be achieved due to the failures, you may generate an empty list of tasks or tasks to explain/suggest alternatives.
+CRITICAL INSTRUCTIONS FOR REPLANNING & TASK LINEAGE:
+1. PRESERVE COMPLETED TASKS: Tasks in execution history with status 'completed' have already succeeded. NEVER recreate or repeat completed flight or hotel searches. Their outputs are already saved.
+2. ONLY REPLAN FAILED OR PENDING TASKS: Generate tasks ONLY for actions that failed or genuinely new dependent tasks.
+3. AIRPORT CODES: Udaipur is ALWAYS UDR (do NOT use UDI). Jodhpur is JDH. Jaipur is JAI. Delhi is DEL.
+4. CITY SPELLINGS: Correct typos like 'Jodhur' to 'Jodhpur'.
+5. Finished tasks in the history have their original global IDs (e.g. 1, 2, ...).
+6. The new tasks you generate will be assigned sequential IDs starting from {start_id}.
+7. If a new task depends on a finished task from execution history or another new task, specify its ID in "depends_on".
 
 Return the updated list of tasks that still need to execute.
 Format your response as a valid JSON object matching the PlannerResponse schema:

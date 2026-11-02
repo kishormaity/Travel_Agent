@@ -25,17 +25,67 @@ def on_progress_callback(event: ProgressEvent):
     )
 
 
+def get_user_input() -> str:
+    """
+    Reads user input, supporting both standard single-line typing and
+    multi-line pasted queries (or triple-quoted multiline input).
+    """
+    print("\nYou: ", end="", flush=True)
+    first_line = sys.stdin.readline()
+    if not first_line:
+        return ""
+
+    first_clean = first_line.rstrip("\r\n")
+
+    # 1. Multi-line block mode if user begins with triple quotes """
+    if first_clean.strip().startswith('"""'):
+        lines = [first_clean.strip()[3:]]
+        print("(Multi-line mode: type \"\"\" on a new line and press Enter to finish)")
+        while True:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            if '"""' in line:
+                lines.append(line.split('"""')[0].rstrip("\r\n"))
+                break
+            lines.append(line.rstrip("\r\n"))
+        return "\n".join(lines).strip()
+
+    lines = [first_clean]
+
+    # 2. Check if more lines are immediately buffered in OS stream (e.g. pasted text)
+    try:
+        import msvcrt
+        import time
+        time.sleep(0.04)  # Small grace window for OS clipboard buffer stream
+        while msvcrt.kbhit():
+            more = sys.stdin.readline()
+            if more:
+                lines.append(more.rstrip("\r\n"))
+            else:
+                break
+    except (ImportError, Exception):
+        pass
+
+    full_query = "\n".join(lines).strip()
+    if len(lines) > 1:
+        word_count = len(full_query.split())
+        print(f"  [Received full query: {len(lines)} lines, {word_count} words]")
+    return full_query
+
+
 def main():
     coordinator = CoordinatorAgent()
 
     print("=" * 60)
     print("🌍 AI Travel Agent (Interactive CLI)")
+    print("Tip: You can paste long multi-paragraph queries directly.")
     print("Type 'exit' to quit.")
     print("=" * 60)
 
     while True:
         try:
-            user_input = input("\nYou: ").strip()
+            user_input = get_user_input()
 
             if user_input.lower() in {"exit", "quit", "bye"}:
                 print("\n👋 Goodbye!")
