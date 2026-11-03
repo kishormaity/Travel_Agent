@@ -154,7 +154,18 @@ class CoordinatorAgent:
         on_progress: Callable[[ProgressEvent], None] = None,
         policy: ExecutionPolicy = ExecutionPolicy.BEST_EFFORT,
     ) -> str:
-        """Run the travel agent workflow via compiled LangGraph."""
+        """Run the travel agent workflow via compiled LangGraph and return the text response."""
+        res = self.run_full(user_goal=user_goal, on_progress=on_progress, policy=policy)
+        return res["final_response"]
+
+    def run_full(
+        self,
+        user_goal: str,
+        on_progress: Callable[[ProgressEvent], None] = None,
+        policy: ExecutionPolicy = ExecutionPolicy.BEST_EFFORT,
+        thread_id: str = "session-default",
+    ) -> dict:
+        """Run the travel agent workflow and return full state including execution plan and final response."""
         logger.info(f"Invoking Travel Agent graph for query: '{user_goal}'")
         
         initial_state = {
@@ -175,7 +186,7 @@ class CoordinatorAgent:
         
         config = {
             "configurable": {
-                "thread_id": "session-default",
+                "thread_id": thread_id,
                 "conversation_memory": self.memory,
                 "llm_client": self.llm_client,
                 "model_name": MODEL_NAME,
@@ -188,4 +199,10 @@ class CoordinatorAgent:
         }
         
         final_state = self.graph.invoke(initial_state, config)
-        return final_state["final_response"]
+        return {
+            "final_response": final_state.get("final_response", ""),
+            "execution_plan": final_state.get("execution_plan"),
+            "planner_context": final_state.get("planner_context"),
+            "validation_result": final_state.get("validation_result"),
+            "state": final_state,
+        }

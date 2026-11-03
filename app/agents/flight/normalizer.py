@@ -665,3 +665,305 @@ def rank_flight_offers(offers: List[NormalizedFlightOffer]) -> Dict[str, List[No
         "fastest": fastest,
         "fewest_stops": fewest_stops,
     }
+
+
+# =============================================================================
+# FLI GOOGLE FLIGHTS MCP NORMALIZATION
+# =============================================================================
+try:
+    from fli.models import Airport
+    _AIRPORT_NAME_TO_CODE = {a.value.upper(): a.name for a in Airport}
+except Exception:
+    _AIRPORT_NAME_TO_CODE = {}
+
+
+def resolve_fli_airport_code(name_or_code: Any) -> str:
+    """Resolve an airport name or code to a 3-letter IATA code."""
+    if not name_or_code:
+        return ""
+    s = str(name_or_code).strip()
+    if len(s) == 3 and s.isalpha():
+        return s.upper()
+    up = s.upper()
+    if up in _AIRPORT_NAME_TO_CODE:
+        return _AIRPORT_NAME_TO_CODE[up]
+    for name, code in _AIRPORT_NAME_TO_CODE.items():
+        if name in up or up in name:
+            return code
+    return s[:3].upper()
+
+
+def _format_fli_dt(val: Any) -> tuple[str, str]:
+    """Extract (time 'HH:MM', date 'YYYY-MM-DD') from a datetime or ISO string."""
+    if val is None:
+        return "", ""
+    if hasattr(val, "strftime"):
+        return val.strftime("%H:%M"), val.strftime("%Y-%m-%d")
+    s = str(val).strip()
+    if "T" in s:
+        parts = s.split("T")
+        return parts[1][:5], parts[0]
+    if " " in s:
+        parts = s.split(" ")
+        return parts[1][:5], parts[0]
+    return s, ""
+
+
+def _parse_fli_leg(leg: Dict[str, Any], default_orig: str, default_dest: str) -> FlightSegment:
+    dep_time_str, dep_date_str = _format_fli_dt(leg.get("departure_time"))
+    arr_time_str, arr_date_str = _format_fli_dt(leg.get("arrival_time"))
+    orig_code = resolve_fli_airport_code(leg.get("departure_airport") or leg.get("departure_airport_name")) or default_orig
+    dest_code = resolve_fli_airport_code(leg.get("arrival_airport") or leg.get("arrival_airport_name")) or default_dest
+    carrier_name = leg.get("airline") or "Unknown"
+    carrier_code = leg.get("airline_code") or ""
+    flight_num = str(leg.get("flight_number") or "").strip()
+    aircraft = leg.get("aircraft") or ""
+    duration = leg.get("duration")
+
+    full_fn = f"{carrier_code}{flight_num}" if (carrier_code and flight_num and not flight_num.startswith(carrier_code)) else (flight_num or carrier_code)
+
+    return FlightSegment(
+        carrier=carrier_name,
+        carrier_code=carrier_code or None,
+        flight_number=full_fn or None,
+        aircraft=aircraft or None,
+        origin=orig_code.upper(),
+        destination=dest_code.upper(),
+        departure_time=dep_time_str,
+        departure_date=dep_date_str or None,
+        departure_timezone=None,
+        arrival_time=arr_time_str,
+        arrival_date=arr_date_str or None,
+        arrival_timezone=None,
+        duration_minutes=duration,
+    )
+
+
+def normalize_fli_flight(
+    item: Dict[str, Any],
+    origin_hint: str,
+    dest_hint: str,
+    preferred_currency: str = "INR",
+    adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
+    is_round_trip_requested: bool = False,
+) -> NormalizedFlightOffer:
+    """Normalize a single flight result from Fli Google Flights MCP (one-way or round-trip)."""
+    if not isinstance(item, dict):
+        raise ValueError("Invalid flight item: expected a dictionary.")
+
+    legs = item.get("legs", []) or []
+    primary_airline = item.get("primary_airline") or (legs[0].get("airline_code") if legs else "")
+    primary_airline_name = item.get("primary_airline_name") or (legs[0].get("airline") if legs else "Unknown")
+    booking_url = item.get("booking_url")
+
+    # Round trip detection
+    is_round_trip = bool(item.get("return_flight") or item.get("is_round_trip") or is_round_trip_requested)
+
+    outbound_legs_raw: List[Dict[str, Any]] = []
+    inbound_legs_raw: List[Dict[str, Any]] = []
+
+    if is_round_trip and len(legs) > 1:
+        # Split legs between outbound and inbound
+        reached_destination = False
+        for leg in legs:
+            dep_code = resolve_fli_airport_code(leg.get("departure_airport") or leg.get("departure_airport_name"))
+            if reached_destination or (dep_code == dest_hint.upper()):
+                reached_destination = True
+                inbound_legs_raw.append(leg)
+            else:
+                outbound_legs_raw.append(leg)
+                arr_code = resolve_fli_airport_code(leg.get("arrival_airport") or leg.get("arrival_airport_name"))
+                if arr_code == dest_hint.upper():
+                    reached_destination = True
+        if not inbound_legs_raw and len(legs) > 1:
+            mid = len(legs) // 2
+            outbound_legs_raw = legs[:mid]
+            inbound_legs_raw = legs[mid:]
+    else:
+        outbound_legs_raw = legs
+        inbound_legs_raw = []
+
+    # Parse outbound segments
+    outbound_segments: List[FlightSegment] = [
+        _parse_fli_leg(l, origin_hint, dest_hint) for l in outbound_legs_raw
+    ]
+
+    # Parse outbound layovers
+    outbound_layovers: List[FlightLayover] = []
+    for i in range(len(outbound_segments) - 1):
+        layover_airport = outbound_segments[i].destination
+        outbound_layovers.append(FlightLayover(airport=layover_airport))
+
+    # Parse inbound segments & layovers
+    inbound_segments: List[FlightSegment] = [
+        _parse_fli_leg(l, dest_hint, origin_hint) for l in inbound_legs_raw
+    ]
+    inbound_layovers: List[FlightLayover] = []
+    for i in range(len(inbound_segments) - 1):
+        layover_airport = inbound_segments[i].destination
+        inbound_layovers.append(FlightLayover(airport=layover_airport))
+
+    # Calculate durations
+    outbound_dur = sum(s.duration_minutes or 0 for s in outbound_segments)
+    inbound_dur = sum(s.duration_minutes or 0 for s in inbound_segments) if inbound_segments else None
+    total_dur = outbound_dur + (inbound_dur or 0)
+
+    dur_h = total_dur // 60
+    dur_m = total_dur % 60
+    duration_formatted = f"{dur_h}h {dur_m}m" if dur_h > 0 else f"{dur_m}m"
+
+    out_dur_h = outbound_dur // 60
+    out_dur_m = outbound_dur % 60
+    outbound_dur_formatted = f"{out_dur_h}h {out_dur_m}m" if out_dur_h > 0 else f"{out_dur_m}m"
+
+    inbound_dur_formatted = ""
+    if inbound_dur is not None:
+        in_dur_h = inbound_dur // 60
+        in_dur_m = inbound_dur % 60
+        inbound_dur_formatted = f"{in_dur_h}h {in_dur_m}m" if in_dur_h > 0 else f"{in_dur_m}m"
+
+    # Flight numbers
+    flight_numbers: List[str] = []
+    for s in outbound_segments + inbound_segments:
+        if s.flight_number and s.flight_number not in flight_numbers:
+            flight_numbers.append(s.flight_number)
+    primary_fn = flight_numbers[0] if flight_numbers else None
+
+    # Origin and destination
+    out_orig = outbound_segments[0].origin if outbound_segments else origin_hint.upper()
+    out_dest = outbound_segments[-1].destination if outbound_segments else dest_hint.upper()
+    dep_time = outbound_segments[0].departure_time if outbound_segments else ""
+    dep_date = outbound_segments[0].departure_date if outbound_segments else None
+    arr_time = outbound_segments[-1].arrival_time if outbound_segments else ""
+    arr_date = outbound_segments[-1].arrival_date if outbound_segments else None
+
+    # Inbound endpoints
+    ret_orig = inbound_segments[0].origin if inbound_segments else None
+    ret_dest = inbound_segments[-1].destination if inbound_segments else None
+    ret_dep_time = inbound_segments[0].departure_time if inbound_segments else None
+    ret_dep_date = inbound_segments[0].departure_date if inbound_segments else None
+    ret_arr_time = inbound_segments[-1].arrival_time if inbound_segments else None
+    ret_arr_date = inbound_segments[-1].arrival_date if inbound_segments else None
+
+    # Stops
+    outbound_stops = max(0, len(outbound_segments) - 1)
+    inbound_stops = max(0, len(inbound_segments) - 1)
+    total_stops = outbound_stops + inbound_stops
+    is_direct = (outbound_stops == 0 and inbound_stops == 0)
+
+    # Overnight check
+    is_overnight = False
+    date_change_days = 0
+    from datetime import datetime
+    if dep_date and arr_date:
+        try:
+            d1 = datetime.strptime(dep_date, "%Y-%m-%d")
+            d2 = datetime.strptime(arr_date, "%Y-%m-%d")
+            date_change_days = (d2 - d1).days
+            is_overnight = date_change_days > 0
+        except Exception:
+            pass
+
+    price = float(item.get("price") or 0.0)
+    currency = item.get("currency") or preferred_currency
+
+    clean_dep = dep_time.replace(":", "") if dep_time else "0000"
+    offer_id = f"fli_{primary_airline}_{primary_fn or 'opt'}_{clean_dep}"
+
+    detected_cabin = None
+    if legs and isinstance(legs[0], dict):
+        detected_cabin = legs[0].get("cabin")
+    if not detected_cabin:
+        detected_cabin = item.get("cabin_class") or item.get("trip_class")
+    
+    clean_cabin = str(detected_cabin).strip().upper() if detected_cabin else "ECONOMY"
+    if "BUSINESS" in clean_cabin:
+        fare_type = "Business Class"
+        cabin_baggage = "Cabin baggage (up to 10kg) included"
+        checked_baggage = "Checked baggage (2 pieces up to 35kg) included"
+        baggage = "Checked baggage (35kg) + Cabin baggage (10kg) included"
+    elif "FIRST" in clean_cabin:
+        fare_type = "First Class"
+        cabin_baggage = "Cabin baggage (up to 12kg) included"
+        checked_baggage = "Checked baggage (up to 40kg) included"
+        baggage = "Checked baggage (40kg) + Cabin baggage (12kg) included"
+    elif "PREMIUM" in clean_cabin:
+        fare_type = "Premium Economy"
+        cabin_baggage = "Cabin baggage (up to 7kg) included"
+        checked_baggage = "Checked baggage (up to 20kg) included"
+        baggage = "Checked baggage (20kg) + Cabin baggage (7kg) included"
+    else:
+        fare_type = "Economy"
+        cabin_baggage = "Cabin baggage (up to 7kg) included"
+        checked_baggage = "Checked baggage (up to 15kg) included"
+        baggage = "15kg checked + 7kg cabin baggage included"
+
+    return NormalizedFlightOffer(
+        provider="fli",
+        provider_flight_id=offer_id,
+        airline=primary_airline_name,
+        airline_code=primary_airline or None,
+        flight_number=primary_fn,
+        flight_numbers=flight_numbers,
+        origin=out_orig,
+        destination=out_dest,
+        departure_time=dep_time,
+        departure_date=dep_date,
+        departure_timezone=None,
+        arrival_time=arr_time,
+        arrival_date=arr_date,
+        arrival_timezone=None,
+        is_direct=is_direct,
+        stops=outbound_stops,
+        is_round_trip=bool(inbound_segments),
+        is_overnight=is_overnight,
+        date_change_days=date_change_days,
+        segments=outbound_segments,
+        layovers=outbound_layovers,
+        inbound_segments=inbound_segments,
+        inbound_layovers=inbound_layovers,
+        outbound_duration_minutes=outbound_dur,
+        inbound_duration_minutes=inbound_dur,
+        outbound_duration_formatted=outbound_dur_formatted,
+        inbound_duration_formatted=inbound_dur_formatted,
+        outbound_airline=primary_airline_name,
+        inbound_airline=(inbound_segments[0].carrier if inbound_segments else None),
+        return_origin=ret_orig,
+        return_destination=ret_dest,
+        return_departure_time=ret_dep_time,
+        return_departure_date=ret_dep_date,
+        return_arrival_time=ret_arr_time,
+        return_arrival_date=ret_arr_date,
+        outbound_stops=outbound_stops,
+        inbound_stops=inbound_stops,
+        total_stops=total_stops,
+        total_round_trip_price=price if bool(inbound_segments) else None,
+        route_match=True,
+        airport_notes=None,
+        duration_formatted=duration_formatted,
+        total_duration_minutes=total_dur,
+        price=price,
+        currency=currency,
+        fare_type=fare_type,
+        baggage=baggage,
+        cabin_baggage=cabin_baggage,
+        checked_baggage=checked_baggage,
+        outbound_baggage=baggage,
+        inbound_baggage=baggage if inbound_segments else None,
+        outbound_cabin_baggage=cabin_baggage,
+        outbound_checked_baggage=checked_baggage,
+        inbound_cabin_baggage=cabin_baggage if inbound_segments else None,
+        inbound_checked_baggage=checked_baggage if inbound_segments else None,
+        passenger_count=adults + children + infants,
+        adults=adults,
+        children=children,
+        infants=infants,
+        booking_url=booking_url or f"https://www.google.com/travel/flights?q=Flights%20from%20{out_orig}%20to%20{out_dest}&curr={currency}",
+        is_bookable=bool(booking_url and str(booking_url).startswith("http")),
+        price_verification_timestamp=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        missing_fields=[],
+        rankings={},
+        raw_metadata=item,
+    )

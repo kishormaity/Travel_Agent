@@ -39,6 +39,7 @@ class RemoteMCPClientManager:
         self._provider_status: Dict[str, Dict[str, Any]] = {
             "maqami": {"status": "uninitialized", "url": settings.maqami_mcp_url, "tools_count": 0},
             "ticketlens": {"status": "uninitialized", "url": settings.ticketlens_mcp_url, "tools_count": 0},
+            "fli": {"status": "uninitialized", "url": settings.fli_mcp_url, "tools_count": 0},
             "flight_octotrip": {"status": "uninitialized", "url": settings.octotrip_mcp_url, "tools_count": 0},
             "obo": {"status": "uninitialized", "url": settings.obo_mcp_url, "tools_count": 0},
             "hasdata": {"status": "uninitialized", "url": settings.hasdata_mcp_url, "tools_count": 0},
@@ -81,6 +82,16 @@ class RemoteMCPClientManager:
         # =====================================================================
         # FLIGHT MCP PROVIDER (OctoTrip as sole flight MCP provider)
         # =====================================================================
+        if settings.fli_mcp_url:
+            connections["fli"] = {
+                "transport": "streamable_http",
+                "url": settings.fli_mcp_url,
+                "headers": {
+                    "Accept": "application/json, text/event-stream",
+                },
+                "timeout": settings.remote_mcp_timeout,
+            }
+
         if settings.octotrip_mcp_url:
             connections["flight_octotrip"] = {
                 "transport": "streamable_http",
@@ -143,61 +154,44 @@ class RemoteMCPClientManager:
                 self._initialized = True
                 return
 
-            logger.info("Discovering tools from remote hosted MCP servers (MAQAMI, TicketLens, OctoTrip, OBO, HasData)...")
-            tools = await self._client.get_tools()
-            self._tools_cache = {t.name: t for t in tools}
+            logger.info("Discovering tools from remote hosted MCP servers (Fli, OctoTrip, MAQAMI, TicketLens, OBO, HasData)...")
+            self._tools_cache = {}
 
-            # Update provider status
-            maqami_tools = [name for name in self._tools_cache if name.startswith("maqami_")]
-            ticketlens_tools = [name for name in self._tools_cache if name.startswith("ticketlens_")]
-            octotrip_tools = [
-                name for name in self._tools_cache
-                if name.startswith("flight_octotrip_") or name.startswith("octotrip_")
-            ]
-            obo_tools = [name for name in self._tools_cache if name.startswith("obo_")]
-            hasdata_tools = [name for name in self._tools_cache if name.startswith("hasdata_")]
-
-            self._provider_status["maqami"] = {
-                "status": "connected" if maqami_tools else "degraded",
-                "url": settings.maqami_mcp_url,
-                "tools_count": len(maqami_tools),
-            }
-            self._provider_status["ticketlens"] = {
-                "status": "connected" if ticketlens_tools else "degraded",
-                "url": settings.ticketlens_mcp_url,
-                "tools_count": len(ticketlens_tools),
-            }
-            self._provider_status["flight_octotrip"] = {
-                "status": "connected" if octotrip_tools else "degraded",
-                "url": settings.octotrip_mcp_url,
-                "tools_count": len(octotrip_tools),
-            }
-            self._provider_status["obo"] = {
-                "status": "connected" if obo_tools else "degraded",
-                "url": settings.obo_mcp_url,
-                "tools_count": len(obo_tools),
-            }
-            self._provider_status["hasdata"] = {
-                "status": "connected" if hasdata_tools else "degraded",
-                "url": settings.hasdata_mcp_url,
-                "tools_count": len(hasdata_tools),
-            }
+            # Discover per-server so one unavailable provider (e.g. offline local Fli) does not fail the others
+            for server_name, conn in self._client.connections.items():
+                try:
+                    server_tools = await self._client.get_tools(server_name=server_name)
+                    for t in server_tools:
+                        self._tools_cache[t.name] = t
+                    self._provider_status[server_name] = {
+                        "status": "connected" if server_tools else "degraded",
+                        "url": conn.get("url", ""),
+                        "tools_count": len(server_tools),
+                    }
+                except Exception as se:
+                    logger.warning(f"Could not connect to MCP provider '{server_name}': {se}")
+                    self._provider_status[server_name] = {
+                        "status": f"offline: {se}",
+                        "url": conn.get("url", ""),
+                        "tools_count": 0,
+                    }
 
             self._initialized = True
+            fli_cnt = self._provider_status.get("fli", {}).get("tools_count", 0)
+            octo_cnt = self._provider_status.get("flight_octotrip", {}).get("tools_count", 0)
+            maqami_cnt = self._provider_status.get("maqami", {}).get("tools_count", 0)
+            ticket_cnt = self._provider_status.get("ticketlens", {}).get("tools_count", 0)
+            obo_cnt = self._provider_status.get("obo", {}).get("tools_count", 0)
             logger.info(
                 f"Remote MCP discovery completed: {len(self._tools_cache)} tools cached "
-                f"(MAQAMI: {len(maqami_tools)}, TicketLens: {len(ticketlens_tools)}, "
-                f"Flight OctoTrip: {len(octotrip_tools)}, OBO: {len(obo_tools)})"
+                f"(Fli: {fli_cnt}, Flight OctoTrip: {octo_cnt}, MAQAMI: {maqami_cnt}, "
+                f"TicketLens: {ticket_cnt}, OBO: {obo_cnt})"
             )
         except Exception as e:
             logger.warning(
-                f"Could not connect to remote hosted MCP providers ({e}). "
+                f"Could not initialize remote hosted MCP providers ({e}). "
                 "Operating with local travel services and tools."
             )
-            self._provider_status["maqami"]["status"] = f"offline: {e}"
-            self._provider_status["ticketlens"]["status"] = f"offline: {e}"
-            self._provider_status["flight_octotrip"]["status"] = f"offline: {e}"
-            self._provider_status["obo"]["status"] = f"offline: {e}"
             self._initialized = True
 
     def ensure_initialized(self) -> None:

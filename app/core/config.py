@@ -75,6 +75,9 @@ class Settings(BaseModel):
     ticketlens_mcp_api_key: str | None = Field(
         default_factory=lambda: os.getenv("TICKETLENS_MCP_API_KEY")
     )
+    fli_mcp_url: str = Field(
+        default_factory=lambda: os.getenv("FLI_MCP_URL", "http://127.0.0.1:8001/mcp/")
+    )
     octotrip_mcp_url: str = Field(
         default_factory=lambda: os.getenv("OCTOTRIP_MCP_URL", "https://mcp.octotrip.app/flights/mcp")
     )

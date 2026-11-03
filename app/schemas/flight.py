@@ -45,6 +45,9 @@ class NormalizedFlightOffer(BaseModel):
     is_direct: bool = True
     stops: int = 0
     is_round_trip: bool = False
+    direction: str = "outbound"
+    journey_label: Optional[str] = None
+    is_lowest_price: bool = False
     is_overnight: bool = False
     date_change_days: int = 0
     segments: List[FlightSegment] = Field(default_factory=list)

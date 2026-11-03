@@ -9,6 +9,12 @@ REMOTE_AGENT_TOOL_PERMISSIONS: Dict[str, Set[str]] = {
     "flight_agent": {
         "flight_octotrip_search",
         "octotrip_search",
+        "fli_search_flights",
+        "fli_search_dates",
+        "fli_get_booking_options",
+        "fli_find_airports",
+        "search_flights",
+        "search_dates",
     },
     "accommodation_agent": {
         "maqami_get_data_hotels",
@@ -71,7 +77,7 @@ def is_remote_tool_permitted(agent_name: str, tool_name: str) -> bool:
     allowed = REMOTE_AGENT_TOOL_PERMISSIONS.get(agent_name, set())
     if tool_name in allowed:
         return True
-    if agent_name == "flight_agent" and "octotrip" in tool_name.lower():
+    if agent_name == "flight_agent" and ("octotrip" in tool_name.lower() or "fli" in tool_name.lower()):
         return True
     if agent_name == "accommodation_agent" and tool_name.startswith("obo_"):
         return True

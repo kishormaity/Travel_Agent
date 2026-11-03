@@ -12,7 +12,12 @@ from app.utils import summarize_result_with_llm
 def format_flight_results_for_response(flights: list) -> dict:
     """Formats flight results preserving explicit outbound and return pairing without lossy compression."""
     if not flights or not isinstance(flights, list):
-        return {"flights": []}
+        return {
+            "status": "NOT_FOUND",
+            "message": "No flights found matching the requested criteria (cabin class, stops, or route).",
+            "recommendation": "Direct flights on this route may operate exclusively in Economy class. Advise traveler to check Economy class for direct non-stop flights or choose 'Any Stops' for connecting options.",
+            "verified_flight_options": []
+        }
 
     formatted_options = []
     for f in flights[:5]:
@@ -205,7 +210,16 @@ class ResponseAgent:
             HumanMessage(content=user_content),
         ])
 
-        return clean_travel_report_formatting(response.content)
+        formatted_response = clean_travel_report_formatting(response.content)
+
+        # Print final response directly to CLI terminal
+        print("\n" + "=" * 70, flush=True)
+        print("📄 FINAL TRAVEL AGENT EXECUTIVE REPORT", flush=True)
+        print("=" * 70, flush=True)
+        print(formatted_response, flush=True)
+        print("=" * 70 + "\n", flush=True)
+
+        return formatted_response
 
     def _build_execution_summary(self, execution_plan: ExecutionPlan) -> str:
         """Convert execution plan tasks into a compact JSON summary to minimize tokens while preserving critical flight pairing and accommodation transparency."""
