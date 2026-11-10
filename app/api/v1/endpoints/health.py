@@ -4,13 +4,13 @@ from app.mcp.remote import remote_mcp_manager
 router = APIRouter(tags=["Health"])
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 def get_health():
     """Basic liveness probe."""
     return {"status": "healthy", "service": "wayfarer-travel-ai"}
 
 
-@router.get("/ready")
+@router.api_route("/ready", methods=["GET", "HEAD"])
 async def get_readiness():
     """Readiness probe checking Remote MCP status."""
     checks = {}

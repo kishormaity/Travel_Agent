@@ -42,19 +42,20 @@ def _ensure_fli_running() -> bool:
     except Exception:
         pass
 
-    # Quick spawn with max 2 quick checks (200ms total max)
+    # Quick spawn with fast check
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        env = dict(os.environ)
+        env["PYTHONPATH"] = f"{base_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
         subprocess.Popen(
             [sys.executable, "-m", "app.mcp.servers.fli_server"],
             cwd=base_dir,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            env=env,
         )
-        for _ in range(2):
-            time.sleep(0.1)
+        for _ in range(5):
+            time.sleep(0.15)
             try:
-                if requests.get(health_url, timeout=0.1).status_code == 200:
+                if requests.get(health_url, timeout=0.15).status_code == 200:
                     logger.info("Auto-started Fli Google Flights MCP server on port 8001.")
                     _FLI_PROBED = True
                     _FLI_RUNNING = True

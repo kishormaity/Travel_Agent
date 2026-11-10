@@ -22,6 +22,13 @@ dependencies = [
     "mcp>=1.0.0",
     "langchain-mcp-adapters>=0.1.0",
     "sse-starlette>=2.0.0",
+    "fastmcp>=3.2",
+    "curl-cffi>=0.7.0",
+    "ratelimit>=2.2.1",
+    "babel>=2.14.0",
+    "plotext>=5.3.0",
+    "typer>=0.12.0",
+    "tenacity>=9.0.0",
 ]
 
 [dependency-groups]

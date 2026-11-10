@@ -38,11 +38,12 @@ def _ensure_fli_running():
     logger.info("Starting local Fli Google Flights MCP server on port 8001...")
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env = dict(os.environ)
+        env["PYTHONPATH"] = f"{base_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
         _fli_proc = subprocess.Popen(
             [sys.executable, "-m", "app.mcp.servers.fli_server"],
             cwd=base_dir,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            env=env,
         )
         for _ in range(30):
             try:
@@ -117,8 +118,8 @@ app.add_middleware(
 # Top-level health routes (/health, /ready)
 app.include_router(health_router)
 
-# Root status route
-@app.get("/")
+# Root status route (supports both GET and HEAD for cloud health probes)
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     return {
         "status": "online",
