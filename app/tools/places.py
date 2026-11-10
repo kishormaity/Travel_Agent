@@ -3,6 +3,7 @@ from loguru import logger
 from langchain_core.tools import tool
 from app.services.places_service import PlacesService
 from app.schemas.tool_result import ToolResult
+from app.core.cache import places_cache
 
 _places_service = PlacesService()
 
@@ -175,6 +176,12 @@ def search_places(city: str, category: str = "tourism.sights", limit: Optional[i
     if not city or not str(city).strip():
         return ToolResult(success=False, error="City name cannot be empty.", data=[])
 
+    cache_key = f"{str(city).strip().lower()}_{category}_{limit}"
+    cached = places_cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"[PlacesTool] Cache HIT for key='{cache_key}' (sub-millisecond return)")
+        return cached
+
     # 1. PRIMARY PROVIDER: Apify MCP Server (happitap/city-tourism-attractions-finder)
     from app.core.config import settings
     if not settings.clean_apify_token:
@@ -222,7 +229,7 @@ def search_places(city: str, category: str = "tourism.sights", limit: Optional[i
                         provider="Apify MCP Server (happitap/city-tourism-attractions-finder) [Primary]",
                     )
                     logger.info(f"\n{cli_table}")
-                    return ToolResult(
+                    res = ToolResult(
                         success=True,
                         data=normalized_apify,
                         metadata={
@@ -232,6 +239,8 @@ def search_places(city: str, category: str = "tourism.sights", limit: Optional[i
                             "is_primary": True,
                         },
                     )
+                    places_cache.set(cache_key, res)
+                    return res
                 else:
                     logger.warning("Apify MCP returned no parsed tourist attractions. Activating Fallback: Geoapify Places API.")
             else:
@@ -255,7 +264,7 @@ def search_places(city: str, category: str = "tourism.sights", limit: Optional[i
     )
     logger.info(f"\n{cli_table}")
 
-    return ToolResult(
+    fallback_res = ToolResult(
         success=True,
         data=data,
         metadata={
@@ -266,6 +275,9 @@ def search_places(city: str, category: str = "tourism.sights", limit: Optional[i
             "source": "geoapify_places",
         },
     )
+    if data:
+        places_cache.set(cache_key, fallback_res)
+    return fallback_res
 
 
 class PlacesTool:

@@ -200,6 +200,15 @@ export interface BudgetSummary {
   categories: BudgetCategory[];
 }
 
+export interface LatencyBreakdown {
+  total_latency_ms: number;
+  total_latency_sec: number;
+  formatted: string;
+  stages?: Record<string, number>;
+  tools?: Record<string, number>;
+  concurrency_speedup?: string;
+}
+
 export interface TripData {
   trip_id: string;
   title: string;
@@ -229,6 +238,7 @@ export interface TripData {
   budget: BudgetSummary;
   raw_sections?: Record<string, string>;
   final_response?: string;
+  latency?: LatencyBreakdown;
 }
 
 export interface AttractionItem {

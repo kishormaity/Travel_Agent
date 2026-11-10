@@ -78,6 +78,9 @@ export async function planTripWithApi(
           if (!tripData.final_response && json.itinerary_markdown) {
             tripData.final_response = json.itinerary_markdown;
           }
+          if (json.latency && !tripData.latency) {
+            tripData.latency = json.latency;
+          }
           return tripData;
         }
       }

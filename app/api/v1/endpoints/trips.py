@@ -7,6 +7,7 @@ from loguru import logger
 
 from app.agents import CoordinatorAgent
 from app.services.trip_extractor import extract_structured_trip_data
+from app.core.latency_profiler import LatencyProfiler
 
 router = APIRouter(tags=["Trips"])
 
@@ -51,6 +52,7 @@ class TripResponse(BaseModel):
     status: str
     itinerary_markdown: str | None = None
     structured_data: dict[str, Any] = Field(default_factory=dict)
+    latency: dict[str, Any] | None = None
 
 
 @router.post("/trips", response_model=TripResponse)
@@ -60,6 +62,7 @@ async def create_trip(payload: CreateTripRequest):
     Executed in a thread executor to keep the async event loop responsive.
     """
     trip_id = f"trip-{uuid.uuid4().hex[:8]}"
+    profiler = LatencyProfiler(trace_id=trip_id)
 
     # Extract & resolve Destination & Origin directly from input boxes
     from app.services.request_normalizer import KNOWN_AIRPORTS, CITY_TO_AIRPORT
@@ -132,15 +135,25 @@ async def create_trip(payload: CreateTripRequest):
         f"({dates_str}, {passengers_str}, Cabin: {cabin_str}, Stops: {stops_str}, Budget: {payload.currency} {budget_val})"
     )
 
+    profiler.mark("request_preparation")
+
     coordinator = get_coordinator()
     loop = asyncio.get_event_loop()
     run_result = await loop.run_in_executor(
         None,
         lambda: coordinator.run_full(user_goal=user_goal, thread_id=trip_id),
     )
+    profiler.mark("graph_execution")
 
     final_response = run_result.get("final_response", "")
     execution_plan = run_result.get("execution_plan")
+
+    if execution_plan and hasattr(execution_plan, "tasks"):
+        for t_id, task in execution_plan.tasks.items():
+            if task.execution_time:
+                profiler.record_tool(f"{task.tool_name} (Task #{t_id})", task.execution_time)
+            elif task.started_at and task.finished_at:
+                profiler.record_tool(f"{task.tool_name} (Task #{t_id})", task.finished_at - task.started_at)
 
     if final_response:
         print("\n" + "=" * 70, flush=True)
@@ -155,6 +168,13 @@ async def create_trip(payload: CreateTripRequest):
         execution_plan=execution_plan,
         trip_id=trip_id,
     )
+    profiler.mark("structured_extraction")
+
+    latency_summary = profiler.get_summary()
+    profiler.print_audit_report()
+
+    # Surface latency metrics in structured_data and payload
+    structured["latency"] = latency_summary
 
     response_payload = {
         "trip_id": trip_id,
@@ -167,6 +187,7 @@ async def create_trip(payload: CreateTripRequest):
         "status": "Verified Plan",
         "itinerary_markdown": final_response,
         "structured_data": structured,
+        "latency": latency_summary,
     }
 
     TRIP_STORE[trip_id] = response_payload

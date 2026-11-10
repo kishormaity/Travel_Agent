@@ -3,6 +3,7 @@ from loguru import logger
 from langchain_core.tools import tool
 from app.services.weather_service import WeatherService
 from app.schemas.tool_result import ToolResult
+from app.core.cache import weather_cache
 
 _weather_service = WeatherService()
 
@@ -50,6 +51,12 @@ def get_current_weather(
         return ToolResult(success=False, error="City name cannot be empty.", data={})
 
     norm_city = normalize_weather_city(city)
+    cache_key = f"{norm_city.lower()}_{start_date}_{end_date}_{days}"
+    cached_data = weather_cache.get(cache_key)
+    if cached_data is not None:
+        logger.info(f"[WeatherTool] Cache HIT for key='{cache_key}' (sub-millisecond return)")
+        return ToolResult(success=True, data=cached_data)
+
     try:
         data = _weather_service.get_weather_forecast(
             city=norm_city,
@@ -57,6 +64,8 @@ def get_current_weather(
             end_date=end_date,
             days=days,
         )
+        if data:
+            weather_cache.set(cache_key, data)
         return ToolResult(success=True, data=data)
     except Exception as e:
         logger.warning(f"[WeatherTool] Error fetching weather for '{city}' (normalized: '{norm_city}'): {e}")

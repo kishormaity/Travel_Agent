@@ -22,15 +22,27 @@ from app.core.observability import (
 from app.services.request_normalizer import resolve_airport_code
 
 
+_FLI_PROBED = False
+_FLI_RUNNING = False
+
 def _ensure_fli_running() -> bool:
-    """Auto-start the local Fli Google Flights MCP server if not already reachable."""
+    """Fast probe to check if Fli Google Flights MCP server is reachable on port 8001 without blocking delays."""
+    global _FLI_PROBED, _FLI_RUNNING
+    if _FLI_PROBED:
+        return _FLI_RUNNING
+
     health_url = os.getenv("FLI_HEALTH_URL", "http://127.0.0.1:8001/health")
     try:
-        if requests.get(health_url, timeout=1).status_code == 200:
+        # Fast 150ms probe
+        resp = requests.get(health_url, timeout=0.15)
+        if resp.status_code == 200:
+            _FLI_PROBED = True
+            _FLI_RUNNING = True
             return True
     except Exception:
         pass
 
+    # Quick spawn with max 2 quick checks (200ms total max)
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         subprocess.Popen(
@@ -39,15 +51,21 @@ def _ensure_fli_running() -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        for _ in range(30):
+        for _ in range(2):
+            time.sleep(0.1)
             try:
-                if requests.get(health_url, timeout=1).status_code == 200:
+                if requests.get(health_url, timeout=0.1).status_code == 200:
                     logger.info("Auto-started Fli Google Flights MCP server on port 8001.")
+                    _FLI_PROBED = True
+                    _FLI_RUNNING = True
                     return True
             except Exception:
-                time.sleep(0.2)
+                pass
     except Exception as e:
-        logger.warning(f"Could not auto-start Fli server: {e}")
+        logger.debug(f"Could not auto-start Fli server: {e}")
+
+    _FLI_PROBED = True
+    _FLI_RUNNING = False
     return False
 
 

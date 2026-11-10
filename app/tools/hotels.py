@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.services.places_service import PlacesService
 from app.schemas.tool_result import ToolResult
 from app.mcp.remote import remote_mcp_manager
+from app.core.cache import hotels_cache
 
 _places_service = PlacesService()
 
@@ -25,6 +26,12 @@ def search_hotels(
     )
     if not city or not str(city).strip():
         return ToolResult(success=False, error="City name cannot be empty.", data=[])
+
+    cache_key = f"{str(city).strip().lower()}_{check_in_date}_{check_out_date}_{adults}_{rooms}_{limit}"
+    cached = hotels_cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"[HotelTool] Cache HIT for key='{cache_key}' (sub-millisecond return)")
+        return cached
 
     # 1. Primary: Attempt HasData Google Hotels search if API key and dates are provided
     if settings.hasdata_api_key and check_in_date and check_out_date:
@@ -56,7 +63,9 @@ def search_hotels(
                 )
                 if normalized:
                     logger.info(f"Successfully retrieved {len(normalized)} hotels from HasData Google Hotels.")
-                    return ToolResult(success=True, data=normalized)
+                    res = ToolResult(success=True, data=normalized)
+                    hotels_cache.set(cache_key, res)
+                    return res
             else:
                 err = mcp_res.get("error", "No data returned")
                 logger.warning(f"HasData Google Hotels returned unsuccessful ({err}). Falling back to Geoapify.")
@@ -75,7 +84,10 @@ def search_hotels(
         adults=adults,
         rooms=rooms,
     )
-    return ToolResult(success=True, data=data)
+    fallback_res = ToolResult(success=True, data=data)
+    if data:
+        hotels_cache.set(cache_key, fallback_res)
+    return fallback_res
 
 
 

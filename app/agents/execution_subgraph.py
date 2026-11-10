@@ -92,10 +92,14 @@ def run_executor_node(state: TaskExecutionState, config: RunnableConfig) -> dict
         latency = (time.time() - start_time) * 1000.0
         
         # Complete task status updates
+        end_time = time.time()
         completed_task = task_running.model_copy(update={
             "status": TaskStatus.COMPLETED,
             "result": output,
-            "error": None
+            "error": None,
+            "started_at": start_time,
+            "finished_at": end_time,
+            "execution_time": end_time - start_time,
         })
         
         exec_metadata = ExecutorMetadata(
@@ -156,11 +160,15 @@ def run_executor_node(state: TaskExecutionState, config: RunnableConfig) -> dict
         logger.warning(f"Task {task.id} attempt {attempt} failed: {e}. Retryable: {is_retryable}")
         
         failure_type = "infrastructure" if is_retryable else "logical"
+        end_time = time.time()
         failed_task = task_running.model_copy(update={
             "status": task_status,
             "error": str(e),
             "retry_count": attempt - 1,
             "failure_type": failure_type if task_status == TaskStatus.FAILED else None,
+            "started_at": start_time,
+            "finished_at": end_time,
+            "execution_time": end_time - start_time,
         })
         
         exec_metadata = ExecutorMetadata(

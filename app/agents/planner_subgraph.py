@@ -258,6 +258,31 @@ def parse_and_map_node(state: PlanningPipelineState, config: RunnableConfig) -> 
             else:
                 remapped_deps.append(dep)
 
+        # Latency Optimization: Decouple independent discovery tasks for true parallel concurrency
+        INDEPENDENT_DISCOVERY_TOOLS = {
+            "search_flights",
+            "search_hotels",
+            "search_places",
+            "get_current_weather",
+            "convert_currency",
+        }
+        if planner_task.tool_name in INDEPENDENT_DISCOVERY_TOOLS:
+            filtered_deps = []
+            for dep in remapped_deps:
+                dep_tool = None
+                if execution_plan and dep in execution_plan.tasks:
+                    dep_tool = execution_plan.tasks[dep].tool_name
+                elif dep in new_tasks:
+                    dep_tool = new_tasks[dep].tool_name
+                if dep_tool and dep_tool in INDEPENDENT_DISCOVERY_TOOLS:
+                    logger.info(
+                        f"[PlannerLatencyOptimization] Decoupling independent task '{planner_task.tool_name}' "
+                        f"from '{dep_tool}' (task {dep}) for parallel execution."
+                    )
+                else:
+                    filtered_deps.append(dep)
+            remapped_deps = filtered_deps
+
         new_tasks[g_id] = Task(
             id=g_id,
             description=planner_task.description,

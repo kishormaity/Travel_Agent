@@ -111,7 +111,7 @@ class Settings(BaseModel):
             return f"apify_api_{tok}"
         return tok
     remote_mcp_timeout: float = Field(
-        default_factory=lambda: float(os.getenv("REMOTE_MCP_TIMEOUT", "75.0"))
+        default_factory=lambda: float(os.getenv("REMOTE_MCP_TIMEOUT", "10.0"))
     )
 
     # LLM Hyperparameters

@@ -11,6 +11,7 @@ import {
   Copy,
   Check,
   Sparkles,
+  Zap,
 } from "lucide-react";
 import { useTripStore } from "../store/useTripStore";
 
@@ -50,6 +51,17 @@ export function TripHeader() {
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
               {trip.status || "Verified Plan"}
             </span>
+
+            {trip.latency && (
+              <span
+                title={`Pipeline Latency: ${trip.latency.formatted} (${trip.latency.total_latency_ms} ms) with parallel multitasking`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200/80 shadow-2xs"
+              >
+                <Zap className="h-3 w-3 text-amber-600 fill-amber-500" />
+                <span>{trip.latency.formatted}</span>
+                <span className="hidden sm:inline text-amber-700/80 font-normal">· Parallel Concurrency</span>
+              </span>
+            )}
 
             {/* Destination tags */}
             {trip.destinations.map((dest, idx) => (
