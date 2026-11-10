@@ -117,6 +117,17 @@ app.add_middleware(
 # Top-level health routes (/health, /ready)
 app.include_router(health_router)
 
+# Root status route
+@app.get("/")
+def root():
+    return {
+        "status": "online",
+        "service": "Wayfarer AI Travel Agent API",
+        "version": "2.1.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
 # Mount API v1 Routes (/api/v1/...)
 app.include_router(api_v1_router)
 
