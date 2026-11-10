@@ -103,11 +103,15 @@ export function FlightsTab() {
     (lowestGoing?.price || 0) + (isRoundTrip && lowestReturn ? lowestReturn.price : 0);
 
   // Render a standardized individual flight box card
-  const renderFlightBox = (flight: FlightOption, options: {
-    highlightLabel?: string;
-    isCheapest?: boolean;
-    journeyBadge?: string;
-  }) => {
+  const renderFlightBox = (
+    flight: FlightOption,
+    options: {
+      highlightLabel?: string;
+      isCheapest?: boolean;
+      journeyBadge?: string;
+    },
+    keyPrefix?: string | number
+  ) => {
     const isCheapest = options.isCheapest || flight.is_lowest_price;
     const originAirport = flight.origin || goingOrigin;
     const destAirport = flight.destination || goingDest;
@@ -123,9 +127,16 @@ export function FlightsTab() {
     const perPersonPrice = flight.price || 0;
     const totalPrice = perPersonPrice * travelersCount;
 
+    const elementKey =
+      keyPrefix !== undefined
+        ? `flight-${keyPrefix}-${flight.id || flight.flight_number || "fl"}-${flight.departure_time || ""}`
+        : flight.id
+        ? `flight-${flight.id}`
+        : `flight-${flight.flight_number || "fl"}-${flight.departure_time || ""}-${flight.price || ""}`;
+
     return (
       <div
-        key={flight.id || `${flight.flight_number}-${flight.departure_time}`}
+        key={elementKey}
         className={`rounded-2xl border transition-all duration-200 relative overflow-hidden bg-white ${
           isCheapest
             ? "border-emerald-600 ring-2 ring-emerald-500/20 shadow-md"
@@ -443,11 +454,15 @@ export function FlightsTab() {
                 </div>
 
                 {lowestGoing &&
-                  renderFlightBox(lowestGoing, {
-                    highlightLabel: "BEST CHEAPEST FLIGHT FOR GOING (OUTBOUND)",
-                    isCheapest: true,
-                    journeyBadge: "Going Leg",
-                  })}
+                  renderFlightBox(
+                    lowestGoing,
+                    {
+                      highlightLabel: "BEST CHEAPEST FLIGHT FOR GOING (OUTBOUND)",
+                      isCheapest: true,
+                      journeyBadge: "Going Leg",
+                    },
+                    "best-deal-going"
+                  )}
 
                 {/* Option to view all going flights */}
                 {sortedOutbound.length > 1 && (
@@ -484,11 +499,15 @@ export function FlightsTab() {
                 </div>
 
                 {lowestReturn &&
-                  renderFlightBox(lowestReturn, {
-                    highlightLabel: "BEST CHEAPEST FLIGHT FOR RETURNING (INBOUND)",
-                    isCheapest: true,
-                    journeyBadge: "Returning Leg",
-                  })}
+                  renderFlightBox(
+                    lowestReturn,
+                    {
+                      highlightLabel: "BEST CHEAPEST FLIGHT FOR RETURNING (INBOUND)",
+                      isCheapest: true,
+                      journeyBadge: "Returning Leg",
+                    },
+                    "best-deal-return"
+                  )}
 
                 {/* Option to view all returning flights */}
                 {sortedReturn.length > 1 && (
@@ -533,11 +552,15 @@ export function FlightsTab() {
 
               <div className="space-y-4">
                 {sortedOutbound.map((flight, idx) =>
-                  renderFlightBox(flight, {
-                    highlightLabel: idx === 0 ? "CHEAPEST GOING FLIGHT" : undefined,
-                    isCheapest: idx === 0,
-                    journeyBadge: `Going Option #${idx + 1}`,
-                  })
+                  renderFlightBox(
+                    flight,
+                    {
+                      highlightLabel: idx === 0 ? "CHEAPEST GOING FLIGHT" : undefined,
+                      isCheapest: idx === 0,
+                      journeyBadge: `Going Option #${idx + 1}`,
+                    },
+                    `all-going-${idx}`
+                  )
                 )}
               </div>
             </div>
@@ -566,11 +589,15 @@ export function FlightsTab() {
 
               <div className="space-y-4">
                 {sortedReturn.map((flight, idx) =>
-                  renderFlightBox(flight, {
-                    highlightLabel: idx === 0 ? "CHEAPEST RETURNING FLIGHT" : undefined,
-                    isCheapest: idx === 0,
-                    journeyBadge: `Return Option #${idx + 1}`,
-                  })
+                  renderFlightBox(
+                    flight,
+                    {
+                      highlightLabel: idx === 0 ? "CHEAPEST RETURNING FLIGHT" : undefined,
+                      isCheapest: idx === 0,
+                      journeyBadge: `Return Option #${idx + 1}`,
+                    },
+                    `all-returning-${idx}`
+                  )
                 )}
               </div>
             </div>
@@ -581,11 +608,15 @@ export function FlightsTab() {
         <div className="space-y-5">
           <div className="space-y-4">
             {(isOneWayExpanded ? sortedOutbound : sortedOutbound.slice(0, 1)).map((flight, idx) =>
-              renderFlightBox(flight, {
-                highlightLabel: idx === 0 ? "CHEAPEST AVAILABLE FLIGHT • BEST VALUE" : undefined,
-                isCheapest: idx === 0,
-                journeyBadge: "One-Way Flight",
-              })
+              renderFlightBox(
+                flight,
+                {
+                  highlightLabel: idx === 0 ? "CHEAPEST AVAILABLE FLIGHT • BEST VALUE" : undefined,
+                  isCheapest: idx === 0,
+                  journeyBadge: "One-Way Flight",
+                },
+                `oneway-${idx}`
+              )
             )}
           </div>
 

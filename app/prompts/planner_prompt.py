@@ -34,6 +34,8 @@ Rules:
 - Never invent arguments.
 - AIRPORT CODES: Always use canonical 3-letter IATA codes. Udaipur is ALWAYS UDR (never use UDI). Jodhpur is JDH. Jaipur is JAI. Delhi is DEL.
 - CITY SPELLINGS: Always use verified city spellings: 'Jodhpur' (never 'Jodhur'), 'Jaipur', 'Udaipur'.
+- MANDATORY ATTRACTION DISCOVERY: For every destination in a trip plan, you MUST schedule a 'search_places' task for the DESTINATION city (e.g. arguments: {{"city": "Bengaluru"}} when destination is BLR/Bengaluru). Never schedule 'search_places' or 'search_hotels' for the origin/departure city (e.g. do NOT search places in Delhi when departing from Delhi). Attractions and hotels must ONLY be searched where the traveler is visiting.
+- WEATHER FORECASTS: When scheduling weather tasks with 'get_current_weather', always pass 'start_date' and 'end_date' matching the user's requested travel dates (e.g. start_date='2026-11-20', end_date='2026-11-27') so that day-by-day weather for each day of the journey is retrieved.
 - REUSE EXISTING DATA: Check the Historical Conversation Summary. If valid data for a tool (e.g. flight schedules, weather forecasts, currency rates) has ALREADY been retrieved in previous turns and remains unchanged, DO NOT create tasks to call those tools again. Only generate tasks for missing information or updated user preferences (e.g. searching for seaside hotels).
 
 Example:
@@ -65,8 +67,27 @@ Example:
             "description": "Find hotels",
             "tool_name": "search_hotels",
             "arguments": {{
+                "city": "Mumbai"
+            }},
+            "depends_on": [],
+            "priority": 2
+        }},
+        {{
+            "description": "Discover attractions, museums, lakes, and famous places",
+            "tool_name": "search_places",
+            "arguments": {{
+                "city": "Mumbai"
+            }},
+            "depends_on": [],
+            "priority": 2
+        }},
+        {{
+            "description": "Get daily weather forecast across travel dates",
+            "tool_name": "get_current_weather",
+            "arguments": {{
                 "city": "Mumbai",
-                "limit": 5
+                "start_date": "2026-11-20",
+                "end_date": "2026-11-27"
             }},
             "depends_on": [],
             "priority": 2

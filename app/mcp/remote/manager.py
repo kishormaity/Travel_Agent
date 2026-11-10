@@ -43,6 +43,7 @@ class RemoteMCPClientManager:
             "flight_octotrip": {"status": "uninitialized", "url": settings.octotrip_mcp_url, "tools_count": 0},
             "obo": {"status": "uninitialized", "url": settings.obo_mcp_url, "tools_count": 0},
             "hasdata": {"status": "uninitialized", "url": settings.hasdata_mcp_url, "tools_count": 0},
+            "apify": {"status": "uninitialized", "url": settings.apify_mcp_url, "tools_count": 0},
         }
 
     def _build_client(self):
@@ -137,6 +138,23 @@ class RemoteMCPClientManager:
                 "timeout": settings.remote_mcp_timeout,
             }
 
+        # =====================================================================
+        # APIFY MCP PROVIDER (City Tourism Attractions Finder - Primary)
+        # =====================================================================
+        if settings.apify_mcp_url:
+            apify_headers = {
+                "Accept": "application/json, text/event-stream",
+                "User-Agent": "Claude/0.7.0",
+            }
+            if settings.clean_apify_token:
+                apify_headers["Authorization"] = f"Bearer {settings.clean_apify_token}"
+            connections["apify"] = {
+                "transport": "streamable_http",
+                "url": settings.apify_mcp_url,
+                "headers": apify_headers,
+                "timeout": 20.0,
+            }
+
         logger.info(f"Configuring MultiServerMCPClient with servers: {list(connections.keys())}")
         return MultiServerMCPClient(connections, tool_name_prefix=True)
 
@@ -160,7 +178,10 @@ class RemoteMCPClientManager:
             # Discover per-server so one unavailable provider (e.g. offline local Fli) does not fail the others
             for server_name, conn in self._client.connections.items():
                 try:
-                    server_tools = await self._client.get_tools(server_name=server_name)
+                    server_tools = await asyncio.wait_for(
+                        self._client.get_tools(server_name=server_name),
+                        timeout=12.0,
+                    )
                     for t in server_tools:
                         self._tools_cache[t.name] = t
                     self._provider_status[server_name] = {
@@ -169,9 +190,10 @@ class RemoteMCPClientManager:
                         "tools_count": len(server_tools),
                     }
                 except Exception as se:
-                    logger.warning(f"Could not connect to MCP provider '{server_name}': {se}")
+                    err_msg = str(se).strip() or type(se).__name__
+                    logger.warning(f"Could not connect to MCP provider '{server_name}': {err_msg}")
                     self._provider_status[server_name] = {
-                        "status": f"offline: {se}",
+                        "status": f"offline: {err_msg}",
                         "url": conn.get("url", ""),
                         "tools_count": 0,
                     }
@@ -270,6 +292,13 @@ class RemoteMCPClientManager:
             elif tool_name.startswith("hasdata_hasdata_") and tool_name[8:] in self._tools_cache:
                 tool = self._tools_cache[tool_name[8:]]
                 tool_name = tool_name[8:]
+            elif "apify" in tool_name.lower() or "happitap" in tool_name.lower():
+                # Flexible lookup for apify city tourism attraction tools
+                for cached_name, cached_tool in self._tools_cache.items():
+                    if "attraction" in cached_name.lower() or "happitap" in cached_name.lower():
+                        tool = cached_tool
+                        tool_name = cached_name
+                        break
 
         if not tool:
             err_msg = f"Remote MCP tool '{tool_name}' not available or provider offline"

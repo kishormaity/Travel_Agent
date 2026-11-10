@@ -50,7 +50,6 @@ export function WorkspaceTabs() {
       id: "hotels",
       label: "Hotels",
       icon: Building2,
-      badge: `${trip?.hotels?.length || 3} Stays`,
     },
     {
       id: "budget",

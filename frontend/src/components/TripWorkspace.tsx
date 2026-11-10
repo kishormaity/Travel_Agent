@@ -6,6 +6,9 @@ import { TripHeader } from "./TripHeader";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { FormattedOutputViewer } from "./FormattedOutputViewer";
 import { FlightsTab } from "./tabs/FlightsTab";
+import { HotelsTab } from "./tabs/HotelsTab";
+import { ItineraryTab } from "./tabs/ItineraryTab";
+import { BudgetTab } from "./tabs/BudgetTab";
 
 export function TripWorkspace() {
   const { trip, activeTab, hasGeneratedTrip } = useTripStore();
@@ -22,10 +25,16 @@ export function TripWorkspace() {
         <div className="bg-white rounded-2xl border border-stone-200/80 shadow-xs overflow-hidden">
           <WorkspaceTabs />
 
-          {/* Formatted Output Area: Dedicated rich box templates for Flights, and clean formatted viewer for other sections */}
+          {/* Formatted Output Area: Dedicated rich templates for Flights, Hotels, Itinerary & Budget, and clean formatted viewer for other sections */}
           <div key={`content-${trip.trip_id}-${activeTab}`} className="p-4 sm:p-6 lg:p-8 bg-[#FAF9F6]/50 min-h-[460px]">
             {activeTab === "flights" ? (
               <FlightsTab />
+            ) : activeTab === "hotels" ? (
+              <HotelsTab />
+            ) : activeTab === "itinerary" ? (
+              <ItineraryTab />
+            ) : activeTab === "budget" ? (
+              <BudgetTab />
             ) : (
               <FormattedOutputViewer sectionKey={activeTab} />
             )}

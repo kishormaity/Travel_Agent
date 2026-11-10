@@ -78,7 +78,8 @@ def user_request_node(state: TravelAgentState, config: RunnableConfig) -> dict:
     if not user_request:
         logger.warning("Empty user request received at user_request_node.")
     else:
-        logger.info(f"Ingested user request: '{user_request}'")
+        first_line = user_request.splitlines()[0] if user_request else "User Request"
+        logger.info(f"Ingested user request into graph: '{first_line}'")
     return {"user_request": user_request}
 
 def load_memory_node(state: TravelAgentState, config: RunnableConfig) -> dict:

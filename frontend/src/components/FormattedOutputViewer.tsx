@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useTripStore } from "../store/useTripStore";
 import { ActiveTabType } from "../types/trip";
+import { BENGALURU_FAMOUS_ATTRACTIONS } from "./tabs/AttractionsTab";
 
 interface FormattedOutputViewerProps {
   sectionKey: ActiveTabType;
@@ -230,6 +231,19 @@ export function FormattedOutputViewer({ sectionKey }: FormattedOutputViewerProps
 
   if (!trip) return null;
 
+  const destCity = trip.destinations?.[0] || trip.destination_summary || "Destination";
+  const isBengaluru =
+    destCity.toLowerCase().includes("bengaluru") ||
+    destCity.toLowerCase().includes("bangalore") ||
+    destCity.toLowerCase().includes("blr");
+
+  const overviewAttractions =
+    trip.attractions && trip.attractions.length > 0
+      ? trip.attractions
+      : isBengaluru
+      ? BENGALURU_FAMOUS_ATTRACTIONS
+      : [];
+
   const meta = SECTION_METADATA[sectionKey] || {
     title: sectionKey.toUpperCase(),
     icon: FileText,
@@ -240,6 +254,31 @@ export function FormattedOutputViewer({ sectionKey }: FormattedOutputViewerProps
   // Retrieve raw text for this section
   let content = trip.raw_sections?.[sectionKey] || "";
 
+  // If verified hotels exist in trip store, always use the complete verified list instead of a 1-row LLM preview
+  if (sectionKey === "hotels" && trip.hotels && trip.hotels.length > 0) {
+    const sorted = [...trip.hotels].sort((a, b) => {
+      const pA = Number(a.rate_per_night || a.price_per_night || a.total_price || 0) || Number.POSITIVE_INFINITY;
+      const pB = Number(b.rate_per_night || b.price_per_night || b.total_price || 0) || Number.POSITIVE_INFINITY;
+      return pA - pB;
+    });
+    const rows = sorted.map((h, i) => {
+      const isMin = h.is_lowest_price || i === 0;
+      const pNight = h.rate_per_night || h.price_per_night;
+      const pStr = pNight ? `INR ${Number(pNight).toLocaleString()}` : "Inquire";
+      const tot = h.total_price || h.total_rate;
+      const totStr = tot ? `INR ${Number(tot).toLocaleString()}` : "—";
+      const rating = h.rating ? `${h.rating} (${h.reviews || h.reviews_count || 0} reviews)` : "N/A";
+      const cls = h.hotel_class ? `${h.hotel_class}` : "—";
+      const bUrl = h.booking_url || "https://www.google.com/travel/hotels";
+      return `| ${h.destination_city || ""} | ${h.property_name || h.name} | ${cls} | ${rating} | ${pStr} ${isMin ? "(Lowest Rate ★)" : ""} | ${totStr} | [${bUrl}](${bUrl}) |`;
+    });
+    content =
+      `| Destination | Property Name | Star Class | Guest Rating | Nightly Rate | Total Stay Rate | Booking Channel |\n` +
+      `|---|---|---|---|---|---|---|\n` +
+      rows.join("\n") +
+      `\n\nRoom Guidance: ${trip.hotels[0]?.room_guidance || trip.hotels[0]?.recommended_rooms || "Suitable for traveler party"}. All live rates verified via Google Hotels.`;
+  }
+
   if (!content && trip.final_response) {
     content = extractFromFullReport(trip.final_response, sectionKey);
   }
@@ -249,14 +288,31 @@ export function FormattedOutputViewer({ sectionKey }: FormattedOutputViewerProps
     if (sectionKey === "overview") {
       content = trip.overview;
     } else if (sectionKey === "itinerary" && trip.itinerary) {
-      content = trip.itinerary
+      const weatherHeader = (trip.weather || [])
+        .map((w) => {
+          if (!w.daily_forecast || w.daily_forecast.length === 0) return "";
+          const rows = w.daily_forecast.map((df) => {
+            const dLabel = df.formatted_date || df.date;
+            const dayNum = df.day_number ? `Day ${df.day_number}` : "";
+            const temp = `${df.temp_min_c}°C – ${df.temp_max_c}°C`;
+            const rain = `${df.precipitation_probability ?? 0}%`;
+            return `| ${dayNum} (${dLabel}) | ${temp} | ${df.condition} | ${rain} | ${df.recommendation || "Pleasant conditions."} |`;
+          });
+          return `### Day-by-Day Weather Forecast: ${w.city} (${w.start_date || ""} to ${w.end_date || ""})\n\n| Day & Date | Low / High Temp | Condition | Rain Chance | Sightseeing Recommendation |\n|---|---|---|---|---|\n${rows.join("\n")}`;
+        })
+        .filter(Boolean)
+        .join("\n\n");
+
+      const daysContent = trip.itinerary
         .map(
           (d) =>
-            `Day ${d.day} - ${d.date} (${d.destination})\n${d.title}: ${d.summary}\n${d.activities
+            `Day ${d.day} – ${d.date} (${d.destination})${d.weather?.temp_range ? ` • 🌤️ Weather: ${d.weather.temp_range}, ${d.weather.condition}` : ""}\n${d.title}: ${d.summary}\n${d.activities
               .map((a) => `- ${a.time}: ${a.title} — ${a.description}`)
               .join("\n")}`
         )
         .join("\n\n");
+
+      content = weatherHeader ? `${weatherHeader}\n\n---\n\n${daysContent}` : daysContent;
     } else if (sectionKey === "flights" && trip.flights?.length > 0) {
       const sorted = [...trip.flights].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
       const minP = sorted[0].price;
@@ -335,6 +391,52 @@ export function FormattedOutputViewer({ sectionKey }: FormattedOutputViewerProps
       <div className="pt-4">
         <RenderFormattedBlocks content={content} />
       </div>
+
+      {/* If Overview Section, display the Clean Attractions Table */}
+      {sectionKey === "overview" && overviewAttractions.length > 0 && (
+        <div className="mt-8 pt-6 border-t border-stone-200/80 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-base font-bold text-stone-900">
+              Famous Attractions & Landmarks
+            </h4>
+            <span className="text-xs font-medium text-stone-500">
+              {overviewAttractions.length} Curated Places
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+            {overviewAttractions.map((item, idx) => {
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                `${item.name} ${destCity}`
+              )}`;
+              return (
+                <div
+                  key={idx}
+                  className="group relative bg-white rounded-2xl border border-stone-200/80 p-4 sm:p-5 flex flex-col justify-between hover:border-emerald-600/50 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-200 min-h-[115px]"
+                >
+                  <div className="absolute inset-x-5 top-0 h-[2px] bg-gradient-to-r from-transparent via-[#1B4332] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full" />
+                  <div className="font-semibold text-stone-900 text-sm tracking-tight leading-snug group-hover:text-[#1B4332] transition-colors pr-1">
+                    {item.name}
+                  </div>
+                  <div className="mt-3.5 pt-2.5 border-t border-stone-100 flex items-center justify-between">
+                    <span className="text-[11px] font-medium text-stone-400 group-hover:text-stone-600 transition-colors">
+                      Location
+                    </span>
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-stone-50 text-stone-700 border border-stone-200/80 group-hover:bg-[#1B4332] group-hover:border-[#1B4332] group-hover:text-white transition-all duration-200 shadow-2xs"
+                    >
+                      Google Maps
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

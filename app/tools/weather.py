@@ -1,3 +1,4 @@
+from typing import Optional
 from loguru import logger
 from langchain_core.tools import tool
 from app.services.weather_service import WeatherService
@@ -37,15 +38,25 @@ def normalize_weather_city(city: str) -> str:
 
 
 @tool
-def get_current_weather(city: str) -> ToolResult:
-    """Get the current weather information for a given city."""
-    logger.info(f"Weather Tool invoked for city='{city}'")
+def get_current_weather(
+    city: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    days: Optional[int] = None,
+) -> ToolResult:
+    """Get day-by-day weather forecasts for a destination city across the requested travel dates (start_date to end_date). Returns day-wise temperatures (high/low), weather conditions, rain chance, and sightseeing recommendations for each day of the journey."""
+    logger.info(f"Weather Tool invoked for city='{city}', start_date='{start_date}', end_date='{end_date}', days={days}")
     if not city or not str(city).strip():
         return ToolResult(success=False, error="City name cannot be empty.", data={})
 
     norm_city = normalize_weather_city(city)
     try:
-        data = _weather_service.get_current_weather(norm_city)
+        data = _weather_service.get_weather_forecast(
+            city=norm_city,
+            start_date=start_date,
+            end_date=end_date,
+            days=days,
+        )
         return ToolResult(success=True, data=data)
     except Exception as e:
         logger.warning(f"[WeatherTool] Error fetching weather for '{city}' (normalized: '{norm_city}'): {e}")
@@ -53,5 +64,16 @@ def get_current_weather(city: str) -> ToolResult:
 
 
 class WeatherTool:
-    def get_current_weather(self, city: str) -> ToolResult:
-        return get_current_weather.invoke({"city": city})
+    def get_current_weather(
+        self,
+        city: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        days: Optional[int] = None,
+    ) -> ToolResult:
+        return get_current_weather.invoke({
+            "city": city,
+            "start_date": start_date,
+            "end_date": end_date,
+            "days": days,
+        })

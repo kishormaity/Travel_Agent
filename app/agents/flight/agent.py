@@ -370,21 +370,22 @@ class FlightAgent:
                             selected_tool=fli_tool,
                             start_time=t0,
                             status="COMPLETED",
+                            # Flight raw offers list commented out to keep CLI clean
                             raw_response={
                                 "count": len(all_normalized_offers),
-                                "flights": [
-                                    {
-                                        "airline": o.airline,
-                                        "flight_number": o.flight_number,
-                                        "departure": f"{o.departure_date} {o.departure_time}",
-                                        "arrival": f"{o.arrival_date} {o.arrival_time}",
-                                        "duration": o.duration_formatted,
-                                        "price": o.price,
-                                        "currency": o.currency,
-                                        "booking_url": o.booking_url,
-                                    }
-                                    for o in all_normalized_offers
-                                ],
+                                # "flights": [
+                                #     {
+                                #         "airline": o.airline,
+                                #         "flight_number": o.flight_number,
+                                #         "departure": f"{o.departure_date} {o.departure_time}",
+                                #         "arrival": f"{o.arrival_date} {o.arrival_time}",
+                                #         "duration": o.duration_formatted,
+                                #         "price": o.price,
+                                #         "currency": o.currency,
+                                #         "booking_url": o.booking_url,
+                                #     }
+                                #     for o in all_normalized_offers
+                                # ],
                             },
                         )
                     else:

@@ -23,10 +23,20 @@ Overview
 Provide a natural narrative summary of the trip, destinations, traveler group, travel dates, and total budget. Summarize the overarching journey experience and key highlights.
 
 Itinerary
-Provide a chronological daily schedule from Day 1 to the final day. For each day, include:
-- Morning, afternoon, and evening activities with specific locations and sights.
-- Inter-city travel durations and check-in / check-out times.
-- Keep each day's description clear, well-paced, and engaging.
+Provide a chronological daily schedule from Day 1 to the final day (Day N).
+
+CRITICAL ATTRACTION COVERAGE & RETURN REST RULES:
+1. MANDATORY ATTRACTION COVERAGE:
+   - You MUST cover ALL famous attractions, landmarks, monuments, and points of interest provided by the tool results (under search_places / top_famous_attractions_rated_5) across the touring days (Day 1 to Day N-1).
+   - Distribute the attractions logically across morning, afternoon, and evening slots so that every single discovered landmark is visited.
+   - For each attraction, name it specifically and briefly highlight what the travelers will see and experience there.
+2. STRICT RETURN DATE REST RULE:
+   - On the final return date (Day N), DO NOT plan or schedule ANY sightseeing, tours, museum visits, shopping trips, or excursions.
+   - The travelers have to rest before their return journey.
+   - The final day must be titled explicitly as a Rest & Return Departure day.
+   - Morning: Leisurely sleep-in, relaxing breakfast at the hotel, zero rushed activities.
+   - Afternoon: Quiet relaxation, packing, and unhurried hotel check-out.
+   - Evening: Scheduled private transfer to the airport or station for the return flight or journey back to the origin city.
 
 Flights
 Present confirmed flight information. Use a clean comparison table:
@@ -52,6 +62,12 @@ Budget
 Provide a complete mathematical breakdown of expenses for all travelers. Use a clean table:
 | Category | Cost (INR) | Pricing Type | Notes |
 Follow with an explicit mathematical comparison against the user's total budget. Clearly state whether the budget is sufficient, the exact surplus or deficit, and why.
+
+CRITICAL BUDGET ACCURACY RULES:
+- Use the actual verified flight fares found in the execution results (multiply by traveler count).
+- Use the actual hotel nightly rates or total stay rate found in the execution results (multiply by nights and rooms).
+- Include realistic transit (airport transfers + daily cabs), daily dining (~₹1,100/day per adult), landmark entry tickets, and contingency buffer.
+- Ensure the sum of all categories equals the total estimated cost, and state the exact surplus or deficit against the user's target budget.
 
 Recommendations
 Provide practical, actionable travel recommendations for packing, advance reservations, local currency/cards, and essential travel advisories.

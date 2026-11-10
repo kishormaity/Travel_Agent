@@ -60,13 +60,26 @@ async def create_trip(payload: CreateTripRequest):
     Executed in a thread executor to keep the async event loop responsive.
     """
     trip_id = f"trip-{uuid.uuid4().hex[:8]}"
-    origin_part = f" travelling from {payload.origin}" if payload.origin else ""
-    dates_part = (
-        f" from {payload.start_date} to {payload.end_date}"
-        if payload.start_date and payload.end_date
-        else f" for {payload.days} days"
-    )
-    budget_part = f", with a total budget of {payload.currency} {int(payload.budget) if payload.budget else 90000}"
+
+    # Extract & resolve Destination & Origin directly from input boxes
+    from app.services.request_normalizer import KNOWN_AIRPORTS, CITY_TO_AIRPORT
+
+    dest_raw = str(payload.destination).strip()
+    dest_upper = dest_raw.upper()
+    if dest_upper in KNOWN_AIRPORTS:
+        dest_display = f"{KNOWN_AIRPORTS[dest_upper][0]} ({dest_upper})"
+    elif dest_raw.lower() in CITY_TO_AIRPORT:
+        iata = CITY_TO_AIRPORT[dest_raw.lower()]
+        dest_display = f"{dest_raw.title()} ({iata})"
+    else:
+        dest_display = dest_raw
+
+    orig_raw = str(payload.origin or "Delhi (DEL)").strip()
+    orig_upper = orig_raw.upper()[:3]
+    if orig_upper in KNOWN_AIRPORTS:
+        orig_display = f"{KNOWN_AIRPORTS[orig_upper][0]} ({orig_upper})"
+    else:
+        orig_display = orig_raw
 
     passengers_summary = []
     if payload.adults > 0:
@@ -77,22 +90,47 @@ async def create_trip(payload: CreateTripRequest):
         passengers_summary.append(f"{payload.infants} infant{'s' if payload.infants > 1 else ''}")
     passengers_str = ", ".join(passengers_summary) if passengers_summary else f"{payload.travelers} travelers"
 
-    flight_prefs = []
-    if payload.cabin_class and payload.cabin_class.upper() != "ECONOMY":
-        flight_prefs.append(f"cabin class: {payload.cabin_class}")
-    if payload.max_stops and payload.max_stops.upper() != "ANY":
-        stops_str = "non-stop direct flights only" if payload.max_stops.upper() in ("NON_STOP", "DIRECT", "0") else f"up to {payload.max_stops} stops"
-        flight_prefs.append(stops_str)
-    flight_prefs_str = f" Flight preferences: {', '.join(flight_prefs)}." if flight_prefs else ""
-
     trip_type_label = "round-trip" if payload.trip_type == "roundtrip" or payload.end_date else "one-way"
+
+    # Cabin class display (always explicit)
+    cabin_str = (payload.cabin_class or "Economy").replace("_", " ").title()
+
+    # Flight stops display (always explicit)
+    if payload.max_stops and payload.max_stops.upper() in ("NON_STOP", "DIRECT", "0"):
+        stops_str = "Non-Stop direct flights only"
+    elif payload.max_stops and payload.max_stops.upper() in ("ONE_STOP", "1"):
+        stops_str = "Up to 1 stop"
+    elif payload.max_stops and payload.max_stops.upper() in ("TWO_PLUS_STOPS", "2"):
+        stops_str = "Up to 2 stops"
+    else:
+        stops_str = "Any Stops"
+
+    dates_str = (
+        f"{payload.start_date} to {payload.end_date} ({payload.days} days)"
+        if payload.start_date and payload.end_date
+        else f"{payload.days} days"
+    )
+
+    budget_val = int(payload.budget) if payload.budget else 90000
+
     user_goal = (
-        f"Plan a {payload.days}-day {trip_type_label} {payload.destination} trip for {passengers_str}{origin_part}{dates_part}{budget_part}.{flight_prefs_str}"
+        f"Trip Planning Request from Form Input:\n"
+        f"- Target Destination: {dest_display}\n"
+        f"- Departure Origin: {orig_display}\n"
+        f"- Travel Dates: {dates_str}\n"
+        f"- Trip Type: {trip_type_label}\n"
+        f"- Travelers: {passengers_str}\n"
+        f"- Cabin Class: {cabin_str}\n"
+        f"- Flight Stops: {stops_str}\n"
+        f"- Total Budget: {payload.currency} {budget_val}"
     )
     if payload.custom_notes:
-        user_goal += f" Additional preferences: {payload.custom_notes}"
+        user_goal += f"\n- Special Notes: {payload.custom_notes}"
 
-    logger.info(f"Received trip creation request for {trip_id}: '{user_goal}'")
+    logger.info(
+        f"Received trip creation request for {trip_id}: {dest_display} from {orig_display} "
+        f"({dates_str}, {passengers_str}, Cabin: {cabin_str}, Stops: {stops_str}, Budget: {payload.currency} {budget_val})"
+    )
 
     coordinator = get_coordinator()
     loop = asyncio.get_event_loop()

@@ -55,27 +55,55 @@ export interface FlightOption {
   verified_status?: string;
 }
 
+export interface HotelNearbyPlace {
+  name?: string;
+  transportations?: Array<{
+    type?: string;
+    duration?: string;
+  }>;
+}
+
+export interface HotelPriceItem {
+  source?: string;
+  rate_per_night?: number | string;
+  total_rate?: number | string;
+  official?: boolean;
+}
+
 export interface HotelOption {
   id?: string;
   property_name: string;
+  name?: string;
   destination_city: string;
   address: string;
   hotel_class?: number | string;
   rating?: number;
   reviews?: number;
+  reviews_count?: number;
+  location_rating?: number;
+  property_type?: string;
   price_per_night?: number | string;
+  rate_per_night?: number | string;
   total_price?: number | string;
+  total_rate?: number | string;
   currency: string;
   live_rates_available: boolean;
+  is_lowest_price?: boolean;
   pricing_notice?: string;
   recommended_rooms?: string;
   room_guidance?: string;
   check_in_date?: string;
   check_out_date?: string;
+  check_in_time?: string;
+  check_out_time?: string;
   nights?: number;
   booking_url?: string;
   image_url?: string;
   amenities?: string[];
+  excluded_amenities?: string[];
+  nearby_places?: HotelNearbyPlace[];
+  essential_info?: string[];
+  prices?: HotelPriceItem[];
 }
 
 export interface RouteDetail {
@@ -87,15 +115,39 @@ export interface RouteDetail {
   key_stops?: string[];
 }
 
+export interface DailyWeatherForecast {
+  date: string;
+  day_number?: number;
+  day_name?: string;
+  formatted_date?: string;
+  temp_max_c: number;
+  temp_min_c: number;
+  temp_avg_c?: number;
+  condition: string;
+  precipitation_probability?: number;
+  humidity?: number;
+  feels_like_c?: number;
+  recommendation?: string;
+  forecast_type?: string;
+}
+
 export interface WeatherInfo {
   city: string;
   region?: string;
-  temperature_c: number;
-  condition: string;
+  country?: string;
+  start_date?: string;
+  end_date?: string;
+  duration_days?: number;
+  temperature_c?: number;
+  condition?: string;
   humidity?: number;
   feels_like_c?: number;
+  overall_high_c?: number;
+  overall_low_c?: number;
   observation_timestamp?: string;
   classification?: string;
+  forecast_summary?: string;
+  daily_forecast?: DailyWeatherForecast[];
 }
 
 export interface ItineraryActivity {
@@ -121,6 +173,11 @@ export interface ItineraryDay {
   summary: string;
   activities: ItineraryActivity[];
   transit?: ItineraryTransit | null;
+  weather?: {
+    temp_range?: string;
+    condition?: string;
+    recommendation?: string;
+  } | null;
 }
 
 export interface BudgetCategory {
@@ -128,6 +185,7 @@ export interface BudgetCategory {
   amount: number;
   percentage: number;
   color: string;
+  notes?: string;
 }
 
 export interface BudgetSummary {
@@ -167,9 +225,27 @@ export interface TripData {
   hotels: HotelOption[];
   routes: RouteDetail[];
   weather: WeatherInfo[];
+  attractions?: AttractionItem[];
   budget: BudgetSummary;
   raw_sections?: Record<string, string>;
   final_response?: string;
+}
+
+export interface AttractionItem {
+  name: string;
+  rating?: number | string;
+  categories?: string[];
+  category?: string;
+  description?: string;
+  address?: string;
+  formatted_address?: string;
+  city?: string;
+  provider?: string;
+  image?: string;
+  photo_url?: string;
+  lat?: number;
+  lon?: number;
+  website?: string;
 }
 
 export interface ProgressEventPayload {

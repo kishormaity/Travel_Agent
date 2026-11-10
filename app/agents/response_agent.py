@@ -102,25 +102,37 @@ def format_hotel_results_for_response(hotels: list) -> dict:
 
 
 def format_weather_results_for_response(weather_data: dict) -> dict:
-    """Formats weather results to strictly separate real-time observations from seasonal climate."""
+    """Formats weather results including day-by-day forecasts for each requested travel date."""
     if not weather_data or not isinstance(weather_data, dict):
         return {"weather": {}}
+
+    daily_list = weather_data.get("daily_forecast") or []
+    formatted_daily = []
+    for d in daily_list:
+        if isinstance(d, dict):
+            formatted_daily.append({
+                "date": d.get("date"),
+                "day": d.get("day_name") or f"Day {d.get('day_number', '')}",
+                "formatted_date": d.get("formatted_date"),
+                "high_c": d.get("temp_max_c"),
+                "low_c": d.get("temp_min_c"),
+                "condition": d.get("condition"),
+                "rain_chance": f"{d.get('precipitation_probability', 0)}%",
+                "recommendation": d.get("recommendation"),
+            })
 
     return {
         "city": weather_data.get("city"),
         "region": weather_data.get("region"),
         "country": weather_data.get("country"),
-        "temperature_c": weather_data.get("temperature_c"),
-        "condition": weather_data.get("condition"),
-        "humidity": weather_data.get("humidity"),
-        "feels_like_c": weather_data.get("feels_like_c"),
-        "observation_timestamp": weather_data.get("observation_time"),
-        "source_provider": weather_data.get("provider", "WeatherAPI.com (real-time observation)"),
-        "data_classification": (
-            "REAL-TIME CURRENT OBSERVATION (Recorded at observation_timestamp). "
-            "Not a forecast for future travel months. Specific future forecasts become available within 7-14 days of departure."
-        ),
-        "historical_climate_archive_available": False,
+        "start_date": weather_data.get("start_date"),
+        "end_date": weather_data.get("end_date"),
+        "duration_days": weather_data.get("duration_days"),
+        "average_temperature_c": weather_data.get("temperature_c"),
+        "overall_condition": weather_data.get("condition"),
+        "daily_forecast": formatted_daily,
+        "forecast_summary": weather_data.get("forecast_summary"),
+        "source_provider": weather_data.get("provider", "Open-Meteo & WeatherAPI"),
     }
 
 
@@ -229,8 +241,35 @@ class ResponseAgent:
                 res_val = format_flight_results_for_response(task.result)
             elif task.tool_name == "search_hotels" and isinstance(task.result, list):
                 res_val = format_hotel_results_for_response(task.result)
-            elif task.tool_name == "get_current_weather" and isinstance(task.result, dict):
-                res_val = format_weather_results_for_response(task.result)
+            elif task.tool_name == "get_current_weather":
+                raw_w = task.result.data if hasattr(task.result, "data") else task.result
+                if isinstance(raw_w, dict):
+                    res_val = format_weather_results_for_response(raw_w)
+                else:
+                    res_val = summarize_result_with_llm(task.result)
+            elif task.tool_name == "search_places":
+                raw_places = task.result.data if hasattr(task.result, "data") else task.result
+                if isinstance(raw_places, list):
+                    res_val = {
+                        "discovered_places_count": len(raw_places),
+                        "mandatory_instruction": (
+                            f"The itinerary MUST incorporate all {len(raw_places)} discovered attractions across "
+                            f"Days 1 to (N-1). Day N (the final return date) must have NO sightseeing activities and must "
+                            f"be strictly reserved for rest, packing, checkout, and return departure."
+                        ),
+                        "top_famous_attractions_rated_5": [
+                            {
+                                "name": p.get("name"),
+                                "rating": p.get("rating", 5.0),
+                                "rating_text": p.get("rating_text", "5.0 / 5 ⭐"),
+                                "categories": p.get("categories", []),
+                                "address": p.get("address"),
+                            }
+                            for p in raw_places if p.get("name")
+                        ],
+                    }
+                else:
+                    res_val = summarize_result_with_llm(task.result)
             else:
                 res_val = summarize_result_with_llm(task.result)
 

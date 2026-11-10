@@ -50,7 +50,26 @@ class LLMExecutor:
             })
 
             result = response.content.strip()
-            logger.info("LLM reasoning task completed successfully via LangChain chain.")
+            # Suppress flight and hotel responses in CLI
+            suppressed = ("flight", "hotel", "accommodation", "stay")
+            if not any(kw in description.lower() for kw in suppressed):
+                logger.info(
+                    f"\n{'=' * 75}\n"
+                    f"🧠 [LLM REASONING TASK RESPONSE] -> {description}\n"
+                    f"{'-' * 75}\n"
+                    f"{result}\n"
+                    f"{'=' * 75}"
+                )
+            else:
+                # Flight and hotel reasoning output in CLI commented out as requested
+                # logger.info(
+                #     f"\n{'=' * 75}\n"
+                #     f"🧠 [LLM REASONING TASK RESPONSE] -> {description}\n"
+                #     f"{'-' * 75}\n"
+                #     f"{result}\n"
+                #     f"{'=' * 75}"
+                # )
+                pass
             return result
 
         except Exception as error:

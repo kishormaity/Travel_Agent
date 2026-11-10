@@ -63,6 +63,9 @@ class PlaceProperties(BaseModel):
     lat: float
     lon: float
     categories: List[str] = []
+    datasource: Optional[Dict[str, Any]] = None
+    name_international: Optional[Dict[str, str]] = None
+    details: Optional[List[str]] = None
 
 class PlaceFeature(BaseModel):
     properties: PlaceProperties

@@ -93,6 +93,23 @@ class Settings(BaseModel):
     hasdata_api_key: str | None = Field(
         default_factory=lambda: os.getenv("HAS_DATA_API_KEY") or os.getenv("HASDATA_API_KEY")
     )
+    apify_mcp_url: str = Field(
+        default_factory=lambda: os.getenv("APIFY_MCP_URL", "https://mcp.apify.com/?tools=fetch-actor-details,happitap/city-tourism-attractions-finder")
+    )
+    apify_api_token: str | None = Field(
+        default_factory=lambda: os.getenv("APIFY_TOKEN") or os.getenv("APIFY_API_TOKEN") or os.getenv("APIFY_API_KEY")
+    )
+
+    @property
+    def clean_apify_token(self) -> str | None:
+        """Normalized Apify token ensuring the canonical 'apify_api_' prefix."""
+        raw = self.apify_api_token
+        if not raw:
+            return None
+        tok = str(raw).strip()
+        if tok and not tok.startswith("apify_api_"):
+            return f"apify_api_{tok}"
+        return tok
     remote_mcp_timeout: float = Field(
         default_factory=lambda: float(os.getenv("REMOTE_MCP_TIMEOUT", "75.0"))
     )

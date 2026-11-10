@@ -59,6 +59,9 @@ REMOTE_AGENT_TOOL_PERMISSIONS: Dict[str, Set[str]] = {
         "hasdata_hasdata_google_maps_search_performMapSearch",
         "hasdata_hasdata_google_maps_place_getPlaceDetails",
         "hasdata_hasdata_google_maps_reviews_getMapReviews",
+        # Apify MCP Tools (City Tourism Attractions Finder)
+        "apify_happitap_city_tourism_attractions_finder",
+        "apify_fetch_actor_details",
     },
 }
 
@@ -80,6 +83,8 @@ def is_remote_tool_permitted(agent_name: str, tool_name: str) -> bool:
     if agent_name == "flight_agent" and ("octotrip" in tool_name.lower() or "fli" in tool_name.lower()):
         return True
     if agent_name == "accommodation_agent" and tool_name.startswith("obo_"):
+        return True
+    if agent_name in ("destination_agent", "places_agent") and "apify" in tool_name.lower():
         return True
     return False
 

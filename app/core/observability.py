@@ -79,10 +79,26 @@ def log_specialist_task_end(
             f"Raw Error: {sanitized_err}"
         )
     else:
-        sanitized_resp = sanitize_secrets(raw_response)
-        logger.info(
-            f"[SpecialistTask:END] TaskID: {task_id} | Specialist: {specialist_name} | "
-            f"MCP Server: {selected_mcp_server} | Tool: {selected_tool} | "
-            f"Status: {status.upper()} | Latency: {latency_ms:.2f}ms | End: {end_str} | "
-            f"Raw Response: {sanitized_resp}"
-        )
+        # Comment out verbose flight data from CLI logging to keep terminal output clean
+        if specialist_name == "flight_agent" or "flight" in str(selected_tool).lower():
+            count = 0
+            if isinstance(raw_response, dict):
+                count = raw_response.get("count", len(raw_response.get("flights", [])))
+            elif isinstance(raw_response, list):
+                count = len(raw_response)
+            logger.info(
+                f"[SpecialistTask:END] TaskID: {task_id} | Specialist: {specialist_name} | "
+                f"MCP Server: {selected_mcp_server} | Tool: {selected_tool} | "
+                f"Status: {status.upper()} | Latency: {latency_ms:.2f}ms | End: {end_str} | "
+                f"Total Offers: {count}"
+                # Flight data commented out as requested:
+                # f" | Raw Response: {sanitized_resp}"
+            )
+        else:
+            sanitized_resp = sanitize_secrets(raw_response)
+            logger.info(
+                f"[SpecialistTask:END] TaskID: {task_id} | Specialist: {specialist_name} | "
+                f"MCP Server: {selected_mcp_server} | Tool: {selected_tool} | "
+                f"Status: {status.upper()} | Latency: {latency_ms:.2f}ms | End: {end_str} | "
+                f"Raw Response: {sanitized_resp}"
+            )

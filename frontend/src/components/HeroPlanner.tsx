@@ -16,6 +16,9 @@ import {
   Armchair,
   SlidersHorizontal,
   Check,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useTripStore } from "../store/useTripStore";
 
@@ -124,26 +127,86 @@ const POPULAR_PLACES = [
   },
 ] as const;
 
+export const ORIGIN_OPTIONS = [
+  { city: "Delhi", iata: "DEL", label: "Delhi (DEL)", subtext: "Indira Gandhi Int'l Airport", emoji: "🏛️" },
+  { city: "Mumbai", iata: "BOM", label: "Mumbai (BOM)", subtext: "Chhatrapati Shivaji Maharaj Int'l", emoji: "🌊" },
+  { city: "Bengaluru", iata: "BLR", label: "Bengaluru (BLR)", subtext: "Kempegowda Int'l Airport", emoji: "🏙️" },
+  { city: "Kolkata", iata: "CCU", label: "Kolkata (CCU)", subtext: "Netaji Subhash Chandra Bose Int'l", emoji: "🚋" },
+  { city: "Chennai", iata: "MAA", label: "Chennai (MAA)", subtext: "Chennai Int'l Airport", emoji: "🛕" },
+  { city: "Hyderabad", iata: "HYD", label: "Hyderabad (HYD)", subtext: "Rajiv Gandhi Int'l Airport", emoji: "💎" },
+  { city: "Ahmedabad", iata: "AMD", label: "Ahmedabad (AMD)", subtext: "Sardar Vallabhbhai Patel Int'l", emoji: "🪁" },
+  { city: "Pune", iata: "PNQ", label: "Pune (PNQ)", subtext: "Pune International Airport", emoji: "⛰️" },
+  { city: "Jaipur", iata: "JAI", label: "Jaipur (JAI)", subtext: "Jaipur Int'l Airport", emoji: "🏰" },
+  { city: "Kochi", iata: "COK", label: "Kochi (COK)", subtext: "Cochin Int'l Airport", emoji: "🌴" },
+  { city: "Goa", iata: "GOI", label: "Goa (GOI)", subtext: "Dabolim / Mopa (GOX)", emoji: "🏖️" },
+  { city: "Lucknow", iata: "LKO", label: "Lucknow (LKO)", subtext: "Chaudhary Charan Singh Int'l", emoji: "🕌" },
+  { city: "Chandigarh", iata: "IXC", label: "Chandigarh (IXC)", subtext: "Shaheed Bhagat Singh Int'l", emoji: "🌹" },
+  { city: "Varanasi", iata: "VNS", label: "Varanasi (VNS)", subtext: "Lal Bahadur Shastri Int'l", emoji: "🪔" },
+  { city: "Amritsar", iata: "ATQ", label: "Amritsar (ATQ)", subtext: "Sri Guru Ram Dass Jee Int'l", emoji: "✨" },
+  { city: "Udaipur", iata: "UDR", label: "Udaipur (UDR)", subtext: "Maharana Pratap Airport", emoji: "👑" },
+] as const;
+
+export const DESTINATION_OPTIONS = [
+  { city: "Bengaluru", iata: "BLR", label: "Bengaluru (BLR)", subtext: "Gardens, Lalbagh & Tech Capital", emoji: "🏙️", suggestedBudget: 60000 },
+  { city: "Jaipur", iata: "JAI", label: "Jaipur (JAI)", subtext: "Amer Fort, Hawa Mahal & Palaces", emoji: "🏰", suggestedBudget: 55000 },
+  { city: "Goa", iata: "GOI", label: "Goa (GOI)", subtext: "Calangute, Palolem & Beaches", emoji: "🏖️", suggestedBudget: 45000 },
+  { city: "Kochi & Munnar", iata: "COK", label: "Kochi & Munnar, Kerala", subtext: "Backwaters, Tea Hills & Houseboats", emoji: "🌴", suggestedBudget: 65000 },
+  { city: "Udaipur", iata: "UDR", label: "Udaipur (UDR)", subtext: "City of Lakes & Royal City Palace", emoji: "👑", suggestedBudget: 60000 },
+  { city: "Delhi", iata: "DEL", label: "Delhi (DEL)", subtext: "India Gate, Red Fort & Qutb Minar", emoji: "🏛️", suggestedBudget: 50000 },
+  { city: "Mumbai", iata: "BOM", label: "Mumbai (BOM)", subtext: "Marine Drive & Gateway of India", emoji: "🌊", suggestedBudget: 65000 },
+  { city: "Varanasi", iata: "VNS", label: "Varanasi (VNS)", subtext: "Spiritual Ghats & Ganga Aarti", emoji: "🪔", suggestedBudget: 35000 },
+  { city: "Srinagar & Gulmarg", iata: "SXR", label: "Srinagar & Gulmarg, Kashmir", subtext: "Dal Lake, Shikaras & Snow Valleys", emoji: "🌸", suggestedBudget: 75000 },
+  { city: "Manali & Shimla", iata: "IXC", label: "Manali & Shimla, Himachal", subtext: "Snow Valleys & Himalayan Passes", emoji: "🏔️", suggestedBudget: 50000 },
+  { city: "Kolkata", iata: "CCU", label: "Kolkata (CCU)", subtext: "Victoria Memorial & Howrah Bridge", emoji: "🚋", suggestedBudget: 45000 },
+  { city: "Hyderabad", iata: "HYD", label: "Hyderabad (HYD)", subtext: "Charminar, Golconda & Pearls", emoji: "💎", suggestedBudget: 50000 },
+  { city: "Amritsar", iata: "ATQ", label: "Amritsar (ATQ)", subtext: "Golden Temple & Wagah Border", emoji: "✨", suggestedBudget: 40000 },
+  { city: "Jodhpur", iata: "JDH", label: "Jodhpur (JDH)", subtext: "Mehrangarh Fort & Blue City", emoji: "💙", suggestedBudget: 50000 },
+  { city: "Agra", iata: "AGR", label: "Agra (AGR)", subtext: "Taj Mahal & Mughal Architecture", emoji: "🕌", suggestedBudget: 40000 },
+  { city: "Chennai", iata: "MAA", label: "Chennai (MAA)", subtext: "Marina Beach & Shore Temples", emoji: "🛕", suggestedBudget: 50000 },
+] as const;
+
 export function HeroPlanner() {
   const { formState, updateFormState, planTrip, isLoading } = useTripStore();
   const [formError, setFormError] = useState<string | null>(null);
   const [todayStr, setTodayStr] = useState("");
 
+  const [isOriginOpen, setIsOriginOpen] = useState(false);
+  const [isDestinationOpen, setIsDestinationOpen] = useState(false);
+  const [originSearch, setOriginSearch] = useState("");
+  const [destinationSearch, setDestinationSearch] = useState("");
   const [isTravellersOpen, setIsTravellersOpen] = useState(false);
   const [isCabinOpen, setIsCabinOpen] = useState(false);
   const [isStopsOpen, setIsStopsOpen] = useState(false);
 
+  // Professional Interactive Calendar System State
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [activeDateField, setActiveDateField] = useState<"going" | "return">("going");
+  const [viewYear, setViewYear] = useState(2026);
+  const [viewMonth, setViewMonth] = useState(10); // 0-indexed: 10 = November
+
+  const originRef = useRef<HTMLDivElement>(null);
+  const destinationRef = useRef<HTMLDivElement>(null);
   const travellersRef = useRef<HTMLDivElement>(null);
   const cabinRef = useRef<HTMLDivElement>(null);
   const stopsRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTodayStr(new Date().toISOString().split("T")[0]);
-  }, []);
 
-  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
+      if (originRef.current && !originRef.current.contains(target)) {
+        setIsOriginOpen(false);
+        setOriginSearch("");
+      }
+      if (destinationRef.current && !destinationRef.current.contains(target)) {
+        setIsDestinationOpen(false);
+        setDestinationSearch("");
+      }
+      if (datePickerRef.current && !datePickerRef.current.contains(target)) {
+        setIsDatePickerOpen(false);
+      }
       if (travellersRef.current && !travellersRef.current.contains(target)) {
         setIsTravellersOpen(false);
       }
@@ -157,6 +220,40 @@ export function HeroPlanner() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const selectedOrigin = ORIGIN_OPTIONS.find(
+    (o) =>
+      formState.origin.toLowerCase().includes(o.iata.toLowerCase()) ||
+      formState.origin.toLowerCase().includes(o.city.toLowerCase())
+  );
+
+  const selectedDestination = DESTINATION_OPTIONS.find(
+    (d) =>
+      formState.destination.toLowerCase().includes(d.iata.toLowerCase()) ||
+      formState.destination.toLowerCase().includes(d.city.toLowerCase().split(" ")[0])
+  );
+
+  const filteredOrigins = ORIGIN_OPTIONS.filter((o) => {
+    if (!originSearch.trim()) return true;
+    const q = originSearch.toLowerCase().trim();
+    return (
+      o.city.toLowerCase().includes(q) ||
+      o.iata.toLowerCase().includes(q) ||
+      o.label.toLowerCase().includes(q) ||
+      o.subtext.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredDestinations = DESTINATION_OPTIONS.filter((d) => {
+    if (!destinationSearch.trim()) return true;
+    const q = destinationSearch.toLowerCase().trim();
+    return (
+      d.city.toLowerCase().includes(q) ||
+      d.iata.toLowerCase().includes(q) ||
+      d.label.toLowerCase().includes(q) ||
+      d.subtext.toLowerCase().includes(q)
+    );
+  });
 
   const handleStartDateChange = (val: string) => {
     setFormError(null);
@@ -196,6 +293,158 @@ export function HeroPlanner() {
       days: newDays,
       dates: formState.startDate ? `${formState.startDate} – ${val}` : val,
     });
+  };
+
+  const openDatePicker = (field: "going" | "return") => {
+    setActiveDateField(field);
+    setIsDatePickerOpen(true);
+    setIsOriginOpen(false);
+    setIsDestinationOpen(false);
+    setIsCabinOpen(false);
+    setIsStopsOpen(false);
+    setIsTravellersOpen(false);
+
+    const targetDate = field === "return" && formState.endDate ? formState.endDate : formState.startDate;
+    if (targetDate) {
+      const parts = targetDate.split("-").map(Number);
+      if (parts[0] && parts[1]) {
+        setViewYear(parts[0]);
+        setViewMonth(parts[1] - 1);
+      }
+    }
+  };
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayIndex = new Date(viewYear, viewMonth, 1).getDay(); // 0 is Sunday
+
+  const isPastDate = (day: number) => {
+    if (!todayStr) return false;
+    const formattedMonth = String(viewMonth + 1).padStart(2, "0");
+    const formattedDay = String(day).padStart(2, "0");
+    const cellDateStr = `${viewYear}-${formattedMonth}-${formattedDay}`;
+    return cellDateStr < todayStr;
+  };
+
+  const isSelectedStart = (day: number) => {
+    if (!formState.startDate) return false;
+    const formattedMonth = String(viewMonth + 1).padStart(2, "0");
+    const formattedDay = String(day).padStart(2, "0");
+    return `${viewYear}-${formattedMonth}-${formattedDay}` === formState.startDate;
+  };
+
+  const isSelectedEnd = (day: number) => {
+    if (!formState.endDate) return false;
+    const formattedMonth = String(viewMonth + 1).padStart(2, "0");
+    const formattedDay = String(day).padStart(2, "0");
+    return `${viewYear}-${formattedMonth}-${formattedDay}` === formState.endDate;
+  };
+
+  const isInRange = (day: number) => {
+    if (!formState.startDate || !formState.endDate) return false;
+    const formattedMonth = String(viewMonth + 1).padStart(2, "0");
+    const formattedDay = String(day).padStart(2, "0");
+    const cellDateStr = `${viewYear}-${formattedMonth}-${formattedDay}`;
+    return cellDateStr > formState.startDate && cellDateStr < formState.endDate;
+  };
+
+  const handleDateClick = (day: number) => {
+    const formattedMonth = String(viewMonth + 1).padStart(2, "0");
+    const formattedDay = String(day).padStart(2, "0");
+    const cellDateStr = `${viewYear}-${formattedMonth}-${formattedDay}`;
+
+    if (activeDateField === "going") {
+      handleStartDateChange(cellDateStr);
+      setActiveDateField("return");
+    } else {
+      if (formState.startDate && cellDateStr < formState.startDate) {
+        handleStartDateChange(cellDateStr);
+        setActiveDateField("return");
+      } else {
+        handleEndDateChange(cellDateStr);
+        setIsDatePickerOpen(false);
+      }
+    }
+  };
+
+  const handlePresetDays = (numDays: number) => {
+    if (!formState.startDate) return;
+    const [y, m, d] = formState.startDate.split("-").map(Number);
+    const startObj = new Date(y, m - 1, d);
+    const endObj = new Date(startObj);
+    endObj.setDate(startObj.getDate() + (numDays - 1));
+
+    const endY = endObj.getFullYear();
+    const endM = String(endObj.getMonth() + 1).padStart(2, "0");
+    const endD = String(endObj.getDate()).padStart(2, "0");
+    const newEndStr = `${endY}-${endM}-${endD}`;
+
+    handleEndDateChange(newEndStr);
+  };
+
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      if (!y || !m || !d) return dateStr;
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString("en-IN", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatShortDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      if (!y || !m || !d) return dateStr;
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getDayOfWeek = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString("en-IN", { weekday: "long" });
+    } catch {
+      return "";
+    }
   };
 
   const handlePassengerChange = (field: "adults" | "children" | "infants", val: number) => {
@@ -335,32 +584,6 @@ export function HeroPlanner() {
           Choose your travel dates, passengers, cabin class, and stops to find the best flights with complete booking links.
         </p>
 
-        {/* Quick Popular Places */}
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <span className="text-xs font-semibold text-stone-600 mr-1 flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 text-[#1B4332]" />
-            <span>Popular Places for Trip:</span>
-          </span>
-          {POPULAR_PLACES.map((place) => {
-            const isSelected = formState.destination.toLowerCase().includes(place.name.toLowerCase().split(",")[0].trim());
-            return (
-              <button
-                key={place.name}
-                type="button"
-                onClick={() => handleSelectPlace(place)}
-                className={`text-xs font-medium px-3.5 py-1.5 rounded-full border transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 ${
-                  isSelected
-                    ? "bg-emerald-50 border-emerald-600 text-emerald-900 font-bold ring-1 ring-emerald-600/30"
-                    : "bg-white border-stone-200/90 text-stone-700 hover:border-emerald-600 hover:text-emerald-800"
-                }`}
-              >
-                <span>{place.emoji}</span>
-                <span>{place.name.split(",")[0]}</span>
-              </button>
-            );
-          })}
-        </div>
-
         {/* Trip Planning Form Card */}
         <div className="mt-8 bg-white rounded-2xl shadow-md border border-stone-200/90 p-5 sm:p-7 text-left max-w-4xl mx-auto">
           {/* Validation Alert */}
@@ -374,76 +597,444 @@ export function HeroPlanner() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Row 1: Origin, Destination, Going Date, Return Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Origin City */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Plane className="h-3.5 w-3.5 text-[#1B4332]" />
-                    <span>Origin City / Airport <span className="text-rose-500 font-bold">*</span></span>
-                  </span>
+              {/* Origin City / Airport */}
+              <div className="space-y-1.5 relative" ref={originRef}>
+                <label className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
+                  <Plane className="h-3.5 w-3.5 text-[#1B4332]" />
+                  <span>Origin City / Airport <span className="text-rose-500 font-bold">*</span></span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={formState.origin}
-                  onChange={(e) => updateFormState({ origin: e.target.value })}
-                  placeholder="Kolkata (CCU)"
-                  className="w-full h-11 px-3 text-sm text-stone-900 bg-stone-50/60 border border-stone-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] transition-all font-medium"
-                />
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOriginOpen(!isOriginOpen);
+                      setIsDestinationOpen(false);
+                      setIsCabinOpen(false);
+                      setIsStopsOpen(false);
+                      setIsTravellersOpen(false);
+                      setOriginSearch("");
+                    }}
+                    className={`w-full h-11 px-3 text-sm text-left text-stone-900 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
+                      isOriginOpen
+                        ? "bg-white border-2 border-[#1B4332] shadow-xs"
+                        : "bg-stone-50/60 border border-stone-200 hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-base">{selectedOrigin?.emoji || "🛫"}</span>
+                      <span className="font-semibold text-xs sm:text-sm text-stone-800 truncate">
+                        {formState.origin || "Select Departure City"}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={`h-4 w-4 text-stone-500 shrink-0 ml-1 transition-transform duration-200 ${
+                        isOriginOpen ? "rotate-180 text-[#1B4332]" : ""
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Popover Options List (All 16 Available) */}
+                {isOriginOpen && (
+                  <div className="absolute left-0 top-full mt-2 w-full sm:w-[320px] max-h-80 overflow-hidden z-50 bg-white rounded-2xl shadow-2xl border border-stone-200/90 flex flex-col animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="p-2 border-b border-stone-100">
+                      <div className="relative">
+                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                        <input
+                          type="text"
+                          value={originSearch}
+                          onChange={(e) => setOriginSearch(e.target.value)}
+                          placeholder="Search 16 origin cities..."
+                          className="w-full h-8 pl-8 pr-3 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:bg-white focus:border-[#1B4332]"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-1.5 overflow-y-auto max-h-64 space-y-1">
+                      <div className="px-2.5 pt-1 pb-1 text-[11px] font-bold text-stone-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>Select Departure City</span>
+                        <span className="text-[10px] text-emerald-700 font-semibold">{filteredOrigins.length} Cities</span>
+                      </div>
+                      {filteredOrigins.map((opt) => {
+                        const isSelected = formState.origin.toLowerCase().includes(opt.iata.toLowerCase());
+                        return (
+                          <button
+                            key={opt.iata}
+                            type="button"
+                            onClick={() => {
+                              updateFormState({ origin: opt.label });
+                              setOriginSearch("");
+                              setIsOriginOpen(false);
+                            }}
+                            className={`w-full p-2.5 rounded-xl text-left transition-all flex items-center justify-between cursor-pointer ${
+                              isSelected
+                                ? "bg-emerald-50/90 border border-emerald-300/80 shadow-2xs text-[#1B4332]"
+                                : "hover:bg-stone-100/70 border border-transparent text-stone-800"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 pr-2">
+                              <span className="text-base">{opt.emoji}</span>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs sm:text-sm font-bold text-stone-900">{opt.city}</span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">{opt.iata}</span>
+                                </div>
+                                <p className="text-[11px] text-stone-500 font-normal leading-tight">{opt.subtext}</p>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <div className="h-5 w-5 rounded-full bg-[#1B4332] text-white flex items-center justify-center shrink-0">
+                                <Check className="h-3 w-3 stroke-[3]" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Destination */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
+              <div className="space-y-1.5 relative" ref={destinationRef}>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5 text-[#1B4332]" />
                     <span>Destination <span className="text-rose-500 font-bold">*</span></span>
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formState.destination}
-                  onChange={(e) => updateFormState({ destination: e.target.value })}
-                  placeholder="Bengaluru (BLR)"
-                  className="w-full h-11 px-3 text-sm text-stone-900 bg-stone-50/60 border border-stone-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] transition-all font-medium"
-                />
+                  </label>
+                </div>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDestinationOpen(!isDestinationOpen);
+                      setIsOriginOpen(false);
+                      setIsCabinOpen(false);
+                      setIsStopsOpen(false);
+                      setIsTravellersOpen(false);
+                      setDestinationSearch("");
+                    }}
+                    className={`w-full h-11 px-3 text-sm text-left text-stone-900 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
+                      isDestinationOpen
+                        ? "bg-white border-2 border-[#1B4332] shadow-xs"
+                        : "bg-stone-50/60 border border-stone-200 hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-base">{selectedDestination?.emoji || "📍"}</span>
+                      <span className="font-semibold text-xs sm:text-sm text-stone-800 truncate">
+                        {formState.destination || "Select Destination"}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={`h-4 w-4 text-stone-500 shrink-0 ml-1 transition-transform duration-200 ${
+                        isDestinationOpen ? "rotate-180 text-[#1B4332]" : ""
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Popover Options List (All 16 Available) */}
+                {isDestinationOpen && (
+                  <div className="absolute left-0 top-full mt-2 w-full sm:w-[320px] max-h-80 overflow-hidden z-50 bg-white rounded-2xl shadow-2xl border border-stone-200/90 flex flex-col animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="p-2 border-b border-stone-100">
+                      <div className="relative">
+                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                        <input
+                          type="text"
+                          value={destinationSearch}
+                          onChange={(e) => setDestinationSearch(e.target.value)}
+                          placeholder="Search 16 destinations..."
+                          className="w-full h-8 pl-8 pr-3 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:bg-white focus:border-[#1B4332]"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-1.5 overflow-y-auto max-h-64 space-y-1">
+                      <div className="px-2.5 pt-1 pb-1 text-[11px] font-bold text-stone-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>Select Destination</span>
+                        <span className="text-[10px] text-emerald-700 font-semibold">{filteredDestinations.length} Places</span>
+                      </div>
+                      {filteredDestinations.map((place) => {
+                        const isSelected = formState.destination.toLowerCase().includes(place.city.toLowerCase().split(" ")[0]);
+                        return (
+                          <button
+                            key={place.iata + place.city}
+                            type="button"
+                            onClick={() => {
+                              updateFormState({
+                                destination: place.label,
+                                budget: formState.budget || place.suggestedBudget,
+                              });
+                              setDestinationSearch("");
+                              setIsDestinationOpen(false);
+                            }}
+                            className={`w-full p-2.5 rounded-xl text-left transition-all flex items-center justify-between cursor-pointer ${
+                              isSelected
+                                ? "bg-emerald-50/90 border border-emerald-300/80 shadow-2xs text-[#1B4332]"
+                                : "hover:bg-stone-100/70 border border-transparent text-stone-800"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 pr-2">
+                              <span className="text-base">{place.emoji}</span>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs sm:text-sm font-bold text-stone-900">{place.city}</span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">{place.iata}</span>
+                                </div>
+                                <p className="text-[11px] text-stone-500 font-normal leading-tight">{place.subtext}</p>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <div className="h-5 w-5 rounded-full bg-[#1B4332] text-white flex items-center justify-center shrink-0">
+                                <Check className="h-3 w-3 stroke-[3]" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Calendar Picker: Departure Date (Mandatory) */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-[#1B4332]" />
-                    <span>Going Date <span className="text-rose-500 font-bold">*</span></span>
-                  </span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  min={todayStr}
-                  value={formState.startDate}
-                  onChange={(e) => handleStartDateChange(e.target.value)}
-                  className="w-full h-11 px-3 text-sm text-stone-900 bg-stone-50/60 border border-stone-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] transition-all cursor-pointer font-medium"
-                />
-              </div>
+              {/* Professional Flight Calendar System */}
+              <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 relative" ref={datePickerRef}>
+                {/* Going Date Card */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-[#1B4332]" />
+                      <span>Going Date <span className="text-rose-500 font-bold">*</span></span>
+                    </span>
+                    {formState.startDate && (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                        {getDayOfWeek(formState.startDate)}
+                      </span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => openDatePicker("going")}
+                    className={`w-full h-11 px-3 text-sm text-left text-stone-900 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
+                      isDatePickerOpen && activeDateField === "going"
+                        ? "bg-white border-2 border-[#1B4332] shadow-xs"
+                        : "bg-stone-50/60 border border-stone-200 hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-[10px] font-bold text-[#1B4332] bg-emerald-100/70 px-1.5 py-0.5 rounded">DEP</span>
+                      <span className="font-semibold text-xs sm:text-sm text-stone-800 truncate">
+                        {formatDisplayDate(formState.startDate) || "Select Departure"}
+                      </span>
+                    </div>
+                    <Calendar className="h-4 w-4 text-stone-400 group-hover:text-[#1B4332]" />
+                  </button>
+                  <input
+                    type="date"
+                    required
+                    value={formState.startDate}
+                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    className="sr-only"
+                    tabIndex={-1}
+                  />
+                </div>
 
-              {/* Calendar Picker: Return Date (Mandatory) */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-[#1B4332]" />
-                    <span>Return Date <span className="text-rose-500 font-bold">*</span></span>
-                  </span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  min={formState.startDate || todayStr}
-                  value={formState.endDate}
-                  onChange={(e) => handleEndDateChange(e.target.value)}
-                  className="w-full h-11 px-3 text-sm text-stone-900 bg-stone-50/60 border border-stone-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] transition-all cursor-pointer font-medium"
-                />
+                {/* Return Date Card */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-[#1B4332]" />
+                      <span>Return Date <span className="text-rose-500 font-bold">*</span></span>
+                    </span>
+                    {formState.days > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                        {formState.days} Days Trip
+                      </span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => openDatePicker("return")}
+                    className={`w-full h-11 px-3 text-sm text-left text-stone-900 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
+                      isDatePickerOpen && activeDateField === "return"
+                        ? "bg-white border-2 border-[#1B4332] shadow-xs"
+                        : "bg-stone-50/60 border border-stone-200 hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-1.5 py-0.5 rounded">RET</span>
+                      <span className="font-semibold text-xs sm:text-sm text-stone-800 truncate">
+                        {formatDisplayDate(formState.endDate) || "Select Return"}
+                      </span>
+                    </div>
+                    <Calendar className="h-4 w-4 text-stone-400 group-hover:text-[#1B4332]" />
+                  </button>
+                  <input
+                    type="date"
+                    required
+                    value={formState.endDate}
+                    onChange={(e) => handleEndDateChange(e.target.value)}
+                    className="sr-only"
+                    tabIndex={-1}
+                  />
+                </div>
+
+                {/* Professional Interactive Calendar Popover */}
+                {isDatePickerOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-full sm:w-[380px] p-4 bg-white rounded-2xl shadow-2xl border border-stone-200/90 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                    {/* Header: Mode Selector */}
+                    <div className="flex items-center gap-1.5 p-1 bg-stone-100 rounded-xl mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setActiveDateField("going")}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          activeDateField === "going"
+                            ? "bg-white text-[#1B4332] shadow-xs border border-stone-200/80 font-bold"
+                            : "text-stone-600 hover:text-stone-900"
+                        }`}
+                      >
+                        <span>🛫 Going:</span>
+                        <span className="truncate">{formState.startDate ? formatShortDate(formState.startDate) : "Pick Date"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveDateField("return")}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          activeDateField === "return"
+                            ? "bg-white text-[#1B4332] shadow-xs border border-stone-200/80 font-bold"
+                            : "text-stone-600 hover:text-stone-900"
+                        }`}
+                      >
+                        <span>🛬 Return:</span>
+                        <span className="truncate">{formState.endDate ? formatShortDate(formState.endDate) : "Pick Date"}</span>
+                      </button>
+                    </div>
+
+                    {/* Month Navigator */}
+                    <div className="flex items-center justify-between mb-3 px-1">
+                      <button
+                        type="button"
+                        onClick={handlePrevMonth}
+                        className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <span className="text-xs sm:text-sm font-bold text-stone-900">
+                        {monthNames[viewMonth]} {viewYear}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleNextMonth}
+                        className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Days of Week Header */}
+                    <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                        <div key={d} className="text-[11px] font-bold text-stone-400 py-1">
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Calendar Month Grid */}
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {/* Empty offset days */}
+                      {Array.from({ length: firstDayIndex }).map((_, idx) => (
+                        <div key={`empty-${idx}`} className="h-8 w-8 mx-auto" />
+                      ))}
+
+                      {/* Days of the month */}
+                      {Array.from({ length: daysInMonth }).map((_, idx) => {
+                        const day = idx + 1;
+                        const isPast = isPastDate(day);
+                        const isStart = isSelectedStart(day);
+                        const isEnd = isSelectedEnd(day);
+                        const inRange = isInRange(day);
+
+                        if (isPast) {
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              disabled
+                              className="h-8 w-8 mx-auto text-xs text-stone-300 font-normal flex items-center justify-center cursor-not-allowed"
+                            >
+                              {day}
+                            </button>
+                          );
+                        }
+
+                        let dayClasses = "h-8 w-8 mx-auto text-xs font-medium flex items-center justify-center transition-all cursor-pointer ";
+                        if (isStart && isEnd) {
+                          dayClasses += "bg-[#1B4332] text-white font-bold rounded-xl shadow-xs ring-2 ring-[#1B4332]/30";
+                        } else if (isStart) {
+                          dayClasses += "bg-[#1B4332] text-white font-bold rounded-xl shadow-xs";
+                        } else if (isEnd) {
+                          dayClasses += "bg-[#1B4332] text-white font-bold rounded-xl shadow-xs";
+                        } else if (inRange) {
+                          dayClasses += "bg-emerald-100/80 text-emerald-950 font-bold rounded-lg";
+                        } else {
+                          dayClasses += "text-stone-700 hover:bg-emerald-50 hover:text-emerald-900 rounded-lg";
+                        }
+
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => handleDateClick(day)}
+                            className={dayClasses}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Quick Trip Duration Chips */}
+                    <div className="mt-3.5 pt-3 border-t border-stone-100 flex items-center justify-between gap-1">
+                      <span className="text-[11px] font-semibold text-stone-500">Duration:</span>
+                      <div className="flex items-center gap-1">
+                        {[3, 5, 7, 10, 14].map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => handlePresetDays(d)}
+                            className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                              formState.days === d
+                                ? "bg-[#1B4332] text-white"
+                                : "bg-stone-100 text-stone-700 hover:bg-emerald-50 hover:text-emerald-900"
+                            }`}
+                          >
+                            {d}d
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Footer: Summary and Done */}
+                    <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-between">
+                      <div className="text-[11px] text-stone-700 font-medium">
+                        <span className="font-bold text-[#1B4332]">{formState.days} Days</span>
+                        <span className="text-stone-400 mx-1">•</span>
+                        <span>{formState.startDate} → {formState.endDate}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsDatePickerOpen(false)}
+                        className="px-3 py-1 bg-[#1B4332] hover:bg-[#143326] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

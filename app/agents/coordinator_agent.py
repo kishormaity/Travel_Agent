@@ -166,7 +166,7 @@ class CoordinatorAgent:
         thread_id: str = "session-default",
     ) -> dict:
         """Run the travel agent workflow and return full state including execution plan and final response."""
-        logger.info(f"Invoking Travel Agent graph for query: '{user_goal}'")
+        logger.info(f"Invoking Travel Agent graph for session '{thread_id}'")
         
         initial_state = {
             "user_request": user_goal,

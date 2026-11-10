@@ -149,7 +149,8 @@ def _is_task_equivalent(tool1: str, args1: dict, tool2: str, args2: dict) -> boo
     if tool1 == "get_current_weather":
         c1 = normalize_weather_city(str(args1.get("city") or "")).lower()
         c2 = normalize_weather_city(str(args2.get("city") or "")).lower()
-        return c1 == c2 and bool(c1)
+        same_dates = args1.get("start_date") == args2.get("start_date") and args1.get("end_date") == args2.get("end_date")
+        return c1 == c2 and bool(c1) and same_dates
 
     if tool1 == "convert_currency":
         return (
@@ -266,6 +267,102 @@ def parse_and_map_node(state: PlanningPipelineState, config: RunnableConfig) -> 
             priority=planner_task.priority,
             status=TaskStatus.PENDING,
         )
+
+    # Guarantee: Attractions ('search_places') MUST be searched for the DESTINATION, NEVER the origin!
+    from app.services.request_normalizer import KNOWN_AIRPORTS, normalize_city_name
+    import re
+
+    flight_origins = set()
+    flight_destinations = set()
+
+    for t in new_tasks.values():
+        if t.tool_name == "search_flights" and t.arguments:
+            o_code = str(t.arguments.get("departure_iata") or t.arguments.get("origin") or "").strip().upper()
+            d_code = str(t.arguments.get("arrival_iata") or t.arguments.get("destination") or "").strip().upper()
+            if o_code in KNOWN_AIRPORTS:
+                flight_origins.add(KNOWN_AIRPORTS[o_code][0].strip().title())
+            elif o_code:
+                flight_origins.add(normalize_city_name(o_code).title())
+
+            if d_code in KNOWN_AIRPORTS:
+                flight_destinations.add(KNOWN_AIRPORTS[d_code][0].strip().title())
+            elif d_code:
+                flight_destinations.add(normalize_city_name(d_code).title())
+
+    # Extract explicit Destination and Origin from user_request text if available
+    req_text = state.get("user_request", "")
+    dest_match = re.search(r"(?:Target Destination:|Destination:)\s+([A-Za-z0-9\s,&]+?)(?:\s*\(|\n|,|\.|$)", req_text, re.IGNORECASE)
+    if dest_match:
+        cand_dest = dest_match.group(1).strip().title()
+        if cand_dest.upper() in KNOWN_AIRPORTS:
+            cand_dest = KNOWN_AIRPORTS[cand_dest.upper()][0].title()
+        if cand_dest and len(cand_dest) > 1:
+            flight_destinations.add(cand_dest)
+
+    orig_match = re.search(r"(?:Departure Origin:|Origin:|travelling from)\s+([A-Za-z0-9\s,&]+?)(?:\s*\(|\n|,|\.|$)", req_text, re.IGNORECASE)
+    if orig_match:
+        cand_orig = orig_match.group(1).strip().title()
+        if cand_orig.upper() in KNOWN_AIRPORTS:
+            cand_orig = KNOWN_AIRPORTS[cand_orig.upper()][0].title()
+        if cand_orig and len(cand_orig) > 1:
+            flight_origins.add(cand_orig)
+
+    target_destination = next(iter(flight_destinations)) if flight_destinations else None
+
+    # 1. Reroute any search_places mistakenly targeted at origin city to destination
+    for t in new_tasks.values():
+        if t.tool_name == "search_places" and t.arguments and t.arguments.get("city"):
+            city_arg = str(t.arguments["city"]).strip().title()
+            if city_arg in flight_origins and target_destination and city_arg != target_destination:
+                logger.warning(
+                    f"[PlannerValidation] Intercepted search_places for Origin '{city_arg}'. "
+                    f"Rerouting to Destination '{target_destination}'."
+                )
+                t.arguments["city"] = target_destination
+                t.description = f"Discover attractions, museums, lakes, and famous places in {target_destination}"
+
+    # Forward explicit Cabin Class and Flight Stops to flight search tasks if present
+    cabin_match = re.search(r"(?:Cabin Class:|Cabin:)\s+([A-Za-z_\s]+?)(?:\n|,|\.|$)", req_text, re.IGNORECASE)
+    stops_match = re.search(r"(?:Flight Stops:|Stops:)\s+([A-Za-z0-9_\s\(\)]+?)(?:\n|,|\.|$)", req_text, re.IGNORECASE)
+    req_cabin = cabin_match.group(1).strip() if cabin_match else None
+    req_stops = stops_match.group(1).strip() if stops_match else None
+
+    for t in new_tasks.values():
+        if t.tool_name == "search_flights":
+            if not t.arguments:
+                t.arguments = {}
+            if req_cabin and "cabin_class" not in t.arguments:
+                t.arguments["cabin_class"] = req_cabin
+            if req_stops and "max_stops" not in t.arguments:
+                t.arguments["max_stops"] = req_stops
+
+    # 2. Ensure every destination city planned in the trip has a search_places task
+    dest_cities = set(flight_destinations)
+    places_cities = set()
+    for t in new_tasks.values():
+        if t.tool_name == "search_hotels" and t.arguments and t.arguments.get("city"):
+            dest_cities.add(str(t.arguments["city"]).strip().title())
+        elif t.tool_name == "get_current_weather" and t.arguments and t.arguments.get("city"):
+            dest_cities.add(str(t.arguments["city"]).strip().title())
+        elif t.tool_name == "search_places" and t.arguments and t.arguments.get("city"):
+            places_cities.add(str(t.arguments["city"]).strip().title())
+
+    # Strictly exclude origin cities from attraction searches
+    dest_cities = dest_cities - flight_origins
+
+    if replan_count == 0:
+        for missing_city in (dest_cities - places_cities):
+            next_id = max(new_tasks.keys(), default=0) + 1
+            new_tasks[next_id] = Task(
+                id=next_id,
+                description=f"Discover attractions, museums, lakes, and famous places in {missing_city}",
+                tool_name="search_places",
+                arguments={"city": missing_city},
+                depends_on=[],
+                priority=2,
+                status=TaskStatus.PENDING,
+            )
+            logger.info(f"[PlannerGuarantee] Added mandatory search_places task for destination '{missing_city}'")
         
     # In replanning, merge existing tasks with new tasks so historical results and dependency lineage are preserved
     if replan_count > 0 and execution_plan and execution_plan.tasks:

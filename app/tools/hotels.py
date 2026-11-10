@@ -4,7 +4,6 @@ from langchain_core.tools import tool
 from app.core.config import settings
 from app.services.places_service import PlacesService
 from app.schemas.tool_result import ToolResult
-from app.agents.accommodation.normalizer import normalize_hasdata_hotel_results
 from app.mcp.remote import remote_mcp_manager
 
 _places_service = PlacesService()
@@ -17,9 +16,9 @@ def search_hotels(
     check_out_date: Optional[str] = None,
     adults: int = 2,
     rooms: Optional[int] = None,
-    limit: int = 5,
+    limit: Optional[int] = None,
 ) -> ToolResult:
-    """Search accommodations and hotels in a city for specified dates and traveler group."""
+    """Search accommodations and hotels in a city for specified dates and traveler group. Returns all available hotels by default."""
     logger.info(
         f"Hotel Tool invoked for city='{city}', check_in={check_in_date}, "
         f"check_out={check_out_date}, adults={adults}, rooms={rooms}, limit={limit}"
@@ -29,6 +28,7 @@ def search_hotels(
 
     # 1. Primary: Attempt HasData Google Hotels search if API key and dates are provided
     if settings.hasdata_api_key and check_in_date and check_out_date:
+        from app.agents.accommodation.normalizer import normalize_hasdata_hotel_results
         try:
             query_city = f"{city}, India" if "india" not in city.lower() else city
             logger.info(f"Querying HasData Google Hotels (primary) for '{query_city}'...")
@@ -64,11 +64,12 @@ def search_hotels(
             logger.warning(f"HasData Google Hotels execution failed: {exc}. Gracefully falling back to Geoapify Places.")
 
     # 2. Fallback: Geoapify Places
-    logger.info(f"Using Geoapify Places for hotel discovery in '{city}' (fallback/default).")
+    geo_limit = limit if limit is not None else 50
+    logger.info(f"Using Geoapify Places for hotel discovery in '{city}' (fallback/default, limit={geo_limit}).")
     data = _places_service.search_places(
         city=city,
         category="hotel",
-        limit=limit,
+        limit=geo_limit,
         check_in_date=check_in_date,
         check_out_date=check_out_date,
         adults=adults,
@@ -86,7 +87,7 @@ class HotelTool:
         check_out_date: Optional[str] = None,
         adults: int = 2,
         rooms: Optional[int] = None,
-        limit: int = 5,
+        limit: Optional[int] = None,
     ) -> ToolResult:
         return search_hotels.invoke({
             "city": city,
