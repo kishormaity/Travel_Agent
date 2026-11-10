@@ -66,6 +66,7 @@ class LatencyProfiler:
                 lines.append(f"    ├─ {t_name:28s}: {t_sec:5.2f}s ({t_ms} ms)")
 
         lines.append("-" * 70)
-        lines.append(f"⚡ Performance Status: Optimized with Parallel Tool Concurrency & In-Memory Caching")
+        lines.append(f"⚡ Performance Status: Optimized with 100% Real-Time Concurrency (No Caching)")
         lines.append("=" * 70 + "\n")
         logger.info("\n".join(lines))
+

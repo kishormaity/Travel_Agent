@@ -170,6 +170,13 @@ async def create_trip(payload: CreateTripRequest):
     )
     profiler.mark("structured_extraction")
 
+    if not structured or (not structured.get("destinations") and not structured.get("itinerary") and not structured.get("flights") and not final_response):
+        logger.warning(f"Backend failed to synthesize data for trip {trip_id}.")
+        raise HTTPException(
+            status_code=502,
+            detail="No data returned from backend.",
+        )
+
     latency_summary = profiler.get_summary()
     profiler.print_audit_report()
 
@@ -198,23 +205,10 @@ async def create_trip(payload: CreateTripRequest):
 def get_trip(trip_id: str):
     """Retrieve an existing generated trip."""
     if trip_id not in TRIP_STORE:
-        logger.info(f"Trip {trip_id} not in store, returning default Kerala itinerary.")
-        structured = extract_structured_trip_data(
-            user_goal="Plan a 7-day Kerala trip for 3 adults travelling from Delhi (DEL) to Kochi, Munnar and Alleppey from 10 January 2027 to 17 January 2027, with a total budget of ₹90,000.",
-            final_response="",
-            trip_id=trip_id,
-        )
-        return TripResponse(
-            trip_id=trip_id,
-            destination="Kochi, Munnar, Alleppey, Kerala",
-            origin="Delhi (DEL)",
-            budget=90000.0,
-            currency="INR",
-            days=7,
-            travelers=3,
-            status="Verified Plan",
-            itinerary_markdown=structured["overview"],
-            structured_data=structured,
+        logger.warning(f"Trip {trip_id} not found in store.")
+        raise HTTPException(
+            status_code=404,
+            detail="Trip not found. No data returned from backend.",
         )
 
     return TripResponse(**TRIP_STORE[trip_id])

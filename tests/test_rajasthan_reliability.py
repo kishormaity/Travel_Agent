@@ -92,11 +92,11 @@ def test_weather_city_normalization_other_cities():
 
 def test_get_current_weather_tool_corrects_spelling():
     """Verify that get_current_weather tool invokes weather service with corrected spelling."""
-    with patch("app.tools.weather._weather_service.get_current_weather") as mock_ws:
+    with patch("app.tools.weather._weather_service.get_weather_forecast") as mock_ws:
         mock_ws.return_value = {"city": "Jodhpur", "temperature_c": 28.0, "condition": "Sunny"}
         res = get_current_weather.invoke({"city": "Jodhur"})
         assert res.success is True
-        mock_ws.assert_called_once_with("Jodhpur")
+        mock_ws.assert_called_once_with(city="Jodhpur", start_date=None, end_date=None, days=None)
 
 
 # ==============================================================================
@@ -287,8 +287,8 @@ def test_completed_tasks_not_re_executed_during_replanning():
 # 5. OctoTrip Caching & Bounded Retries Tests
 # ==============================================================================
 
-def test_flight_agent_cache_deduplication():
-    """Verify that repeated flight search queries hit the in-memory cache without calling remote MCP."""
+def test_flight_agent_realtime_execution_no_cache():
+    """Verify that every flight search executes in real-time with zero caching."""
     FlightAgent.clear_cache()
     agent = FlightAgent()
 
@@ -326,10 +326,10 @@ def test_flight_agent_cache_deduplication():
         assert out1.success is True
         assert mock_exec.call_count == 1
 
-        # Second execution with identical args -> returns cached output without calling remote MCP
+        # Second execution with identical args -> executes again in real-time (no caching)
         out2 = agent.execute(departure_iata="DEL", arrival_iata="BKK", flight_date="2026-12-10")
         assert out2.success is True
-        assert mock_exec.call_count == 1  # Still 1! Remote MCP was NOT called again.
+        assert mock_exec.call_count == 2
         assert len(out2.flights) == len(out1.flights)
 
 

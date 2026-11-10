@@ -77,14 +77,10 @@ class FlightAgent:
     Includes in-memory search deduplication caching, bounded retries, and airport code normalization.
     """
 
-    _flight_cache: Dict[str, tuple[float, FlightAgentOutput]] = {}
-    _cache_lock = threading.Lock()
-
     @classmethod
     def clear_cache(cls) -> None:
-        """Clears the in-memory flight search cache."""
-        with cls._cache_lock:
-            cls._flight_cache.clear()
+        """No-op: All caching has been removed to enforce 100% real-time data fetching."""
+        pass
 
     def __init__(self):
         self.agent_name = "flight_agent"
@@ -184,28 +180,7 @@ class FlightAgent:
         mapped_cabin: str = self._map_cabin_class(kwargs.get("cabin_class") or trip_class)
         mapped_stops: str = self._map_max_stops(kwargs.get("max_stops", "ANY"))
 
-        # ---------------------------------------------------------------------
-        # 0. Check In-Memory Deduplication Cache
-        # ---------------------------------------------------------------------
-        cache_key = f"{origin}:{destination}:{dep_date}:{ret_date}:{adults}:{children}:{infants}:{mapped_cabin}:{mapped_stops}:{preferred_currency}"
-        if not bypass_cache:
-            with self._cache_lock:
-                if cache_key in self._flight_cache:
-                    cached_time, cached_out = self._flight_cache[cache_key]
-                    if time.time() - cached_time < 1800.0:  # 30-minute valid TTL
-                        is_valid_cache = True
-                        if mapped_stops == "NON_STOP":
-                            if any(f.get("stops", 0) > 0 or f.get("is_direct") is False for f in (cached_out.flights or [])):
-                                is_valid_cache = False
-                        if is_valid_cache:
-                            logger.info(
-                                f"[{self.agent_name}] Cache HIT for flight search {cache_key} "
-                                f"(age: {time.time() - cached_time:.1f}s, offers: {len(cached_out.flights)})"
-                            )
-                            return cached_out.model_copy(update={"execution_time_ms": (time.time() - start_time) * 1000.0})
-                        else:
-                            del self._flight_cache[cache_key]
-
+        # Real-time search: No caching, always query live providers
         _ensure_fli_running()
         remote_mcp_manager.ensure_initialized()
 
@@ -441,9 +416,9 @@ class FlightAgent:
                 )
 
         # ---------------------------------------------------------------------
-        # 2. Fallback Flight Provider: OctoTrip (only if Fli had an error/outage)
+        # 2. Fallback Flight Provider: OctoTrip (only if Fli had an error/outage or is not configured)
         # ---------------------------------------------------------------------
-        if not all_normalized_offers and fli_error:
+        if not all_normalized_offers and (fli_error or not fli_tool):
             if fli_error:
                 logger.warning(f"[{self.agent_name}] Fli MCP unavailable or failed ({fli_error}). Falling back to OctoTrip...")
 
@@ -473,7 +448,7 @@ class FlightAgent:
                 arguments=ot_args,
             )
 
-            max_retries = 0
+            max_retries = 2
             ot_res: Optional[Dict[str, Any]] = None
 
             for attempt in range(max_retries + 1):
@@ -495,8 +470,8 @@ class FlightAgent:
                     raw_data = ot_res.get("data")
                     parsed = extract_raw_json(raw_data)
                     ot_results = []
-                    if isinstance(parsed, dict) and "flights" in parsed:
-                        ot_results = parsed["flights"]
+                    if isinstance(parsed, dict):
+                        ot_results = parsed.get("results") or parsed.get("flights") or []
                     elif isinstance(parsed, list):
                         ot_results = parsed
 
@@ -526,7 +501,7 @@ class FlightAgent:
                             raw_response={"count": len(all_normalized_offers)},
                         )
                     else:
-                        ot_error = "OctoTrip returned 0 offers"
+                        not_found_advice = f"No commercial flights available between {origin} and {destination} on {dep_date}."
                 else:
                     ot_error = (ot_res.get("error") if ot_res else None) or "No data returned from OctoTrip MCP"
                     log_specialist_task_end(
@@ -555,7 +530,7 @@ class FlightAgent:
         # 3. Provider Outage / Clean Not-Found Handling
         # ---------------------------------------------------------------------
         if not all_normalized_offers:
-            if fli_error and ot_error:
+            if (fli_error or not fli_tool) and ot_error:
                 combined_err = f"All flight providers failed. Fli: {fli_error}; OctoTrip: {ot_error}"
                 logger.error(f"[{self.agent_name}] {combined_err}")
                 return FlightAgentOutput(
@@ -676,9 +651,6 @@ class FlightAgent:
             },
             execution_time_ms=elapsed_ms,
         )
-
-        with self._cache_lock:
-            self._flight_cache[cache_key] = (time.time(), output_obj)
 
         return output_obj
 

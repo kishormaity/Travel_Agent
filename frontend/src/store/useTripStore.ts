@@ -29,12 +29,14 @@ interface TripStoreState {
   currentProgressMessage: string;
   formState: TripFormState;
   hasGeneratedTrip: boolean;
+  errorMessage: string | null;
 
   // Actions
   setActiveTab: (tab: ActiveTabType) => void;
   updateFormState: (updates: Partial<TripFormState>) => void;
   planTrip: () => Promise<void>;
   resetToMock: () => void;
+  clearError: () => void;
 }
 
 export const useTripStore = create<TripStoreState>((set, get) => ({
@@ -44,6 +46,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
   progressEvents: [],
   currentProgressMessage: "",
   hasGeneratedTrip: false,
+  errorMessage: null,
   formState: {
     destination: "",
     origin: "Delhi (DEL)",
@@ -72,6 +75,10 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
     }));
   },
 
+  clearError: () => {
+    set({ errorMessage: null });
+  },
+
   resetToMock: () => {
     set({
       trip: null,
@@ -79,6 +86,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
       activeTab: "overview",
       isLoading: false,
       progressEvents: [],
+      errorMessage: null,
     });
   },
 
@@ -88,6 +96,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
       isLoading: true,
       progressEvents: [],
       currentProgressMessage: `Planning trip to ${formState.destination}...`,
+      errorMessage: null,
     });
 
     try {
@@ -129,6 +138,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
         hasGeneratedTrip: true,
         isLoading: false,
         activeTab: "overview",
+        errorMessage: null,
       });
 
       // Smooth scroll down to workspace
@@ -138,12 +148,24 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
           workspaceEl.scrollIntoView({ behavior: "smooth" });
         }
       }, 50);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error planning trip:", error);
+      const userMessage = error?.message || "No data returned from backend. Please verify your query or try again.";
       set({
+        trip: null,
+        hasGeneratedTrip: false,
         isLoading: false,
-        currentProgressMessage: "Failed to generate plan. Please try again.",
+        currentProgressMessage: "",
+        errorMessage: userMessage,
       });
+
+      // Smooth scroll down to notification area
+      setTimeout(() => {
+        const workspaceEl = document.getElementById("trip-workspace");
+        if (workspaceEl) {
+          workspaceEl.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 50);
     }
   },
 }));

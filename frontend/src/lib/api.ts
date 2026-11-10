@@ -38,56 +38,77 @@ export async function planTripWithApi(
   params: PlanTripParams,
   onProgress?: (event: ProgressEventPayload) => void
 ): Promise<TripData> {
-  const isHealthy = await checkBackendHealth();
+  if (onProgress) {
+    onProgress({ task_id: 1, description: `Analyzing travel request for ${params.destination}...`, status: "running" });
+  }
 
-  if (isHealthy) {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/trips`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        destination: params.destination,
+        origin: params.origin || "Delhi (DEL)",
+        budget: params.budget || 90000,
+        currency: params.currency || "INR",
+        start_date: params.startDate || "10 Jan 2027",
+        end_date: params.endDate || "17 Jan 2027",
+        days: params.days || 7,
+        travelers: params.travelers || (params.adults || 1) + (params.children || 0) + (params.infants || 0),
+        adults: params.adults ?? 1,
+        children: params.children ?? 0,
+        infants: params.infants ?? 0,
+        cabin_class: params.cabinClass || "ECONOMY",
+        max_stops: params.maxStops || "ANY",
+        trip_type: params.tripType || (params.endDate ? "roundtrip" : "oneway"),
+        custom_notes: params.customNotes,
+      }),
+    });
+  } catch (err: any) {
+    throw new Error(
+      `Cannot connect to backend (${err?.message || "Network Error"}). No data returned from backend.`
+    );
+  }
+
+  if (!response.ok) {
+    let errDetail = "No data returned from backend.";
     try {
-      if (onProgress) {
-        onProgress({ task_id: 1, description: `Analyzing travel request for ${params.destination}...`, status: "running" });
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/trips`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination: params.destination,
-          origin: params.origin || "Delhi (DEL)",
-          budget: params.budget || 90000,
-          currency: params.currency || "INR",
-          start_date: params.startDate || "10 Jan 2027",
-          end_date: params.endDate || "17 Jan 2027",
-          days: params.days || 7,
-          travelers: params.travelers || (params.adults || 1) + (params.children || 0) + (params.infants || 0),
-          adults: params.adults ?? 1,
-          children: params.children ?? 0,
-          infants: params.infants ?? 0,
-          cabin_class: params.cabinClass || "ECONOMY",
-          max_stops: params.maxStops || "ANY",
-          trip_type: params.tripType || (params.endDate ? "roundtrip" : "oneway"),
-          custom_notes: params.customNotes,
-        }),
-      });
-
-      if (response.ok) {
-        const json = await response.json();
-        if (json.structured_data && Object.keys(json.structured_data).length > 0) {
-          if (onProgress) {
-            onProgress({ task_id: 5, description: "Travel plan synthesized successfully!", status: "completed" });
-          }
-          const tripData = json.structured_data as TripData;
-          if (!tripData.final_response && json.itinerary_markdown) {
-            tripData.final_response = json.itinerary_markdown;
-          }
-          if (json.latency && !tripData.latency) {
-            tripData.latency = json.latency;
-          }
-          return tripData;
-        }
+      const errJson = await response.json();
+      if (errJson?.detail) {
+        errDetail = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
       }
     } catch {
-      // Live call error (e.g. backend reloader in progress) - adapt dynamically below
+      errDetail = `Backend returned HTTP ${response.status}: ${response.statusText}`;
     }
+    throw new Error(errDetail);
   }
+
+  const json = await response.json();
+  if (!json.structured_data || Object.keys(json.structured_data).length === 0) {
+    throw new Error("No data returned from backend.");
+  }
+
+  if (onProgress) {
+    onProgress({ task_id: 5, description: "Travel plan synthesized successfully!", status: "completed" });
+  }
+
+  const tripData = json.structured_data as TripData;
+  if (!tripData.final_response && json.itinerary_markdown) {
+    tripData.final_response = json.itinerary_markdown;
+  }
+  if (json.latency && !tripData.latency) {
+    tripData.latency = json.latency;
+  }
+
+  return tripData;
+}
+
+// Fallback generator preserved for developer reference if needed
+async function _legacyFallbackPlan(
+  params: PlanTripParams,
+  onProgress?: (event: ProgressEventPayload) => void
+): Promise<TripData> {
 
   // Real-time simulated task progression for responsive feedback
   if (onProgress) {
@@ -1131,7 +1152,10 @@ export async function executeTravelQuery(
       if (response.ok) {
         const json = await response.json();
         const textReport = json.response || "";
-        const tripData = (json.structured_data || mockKeralaTrip) as TripData;
+        if (!json.structured_data || Object.keys(json.structured_data).length === 0) {
+          throw new Error("No data returned from backend.");
+        }
+        const tripData = json.structured_data as TripData;
         tripData.final_response = textReport;
 
         if (onProgress) {
@@ -1142,42 +1166,13 @@ export async function executeTravelQuery(
           });
         }
         return { textResponse: textReport, trip: tripData };
+      } else {
+        throw new Error(`Backend returned HTTP status ${response.status}: No data returned from backend.`);
       }
-    } catch (err) {
-      console.warn("Direct /chat call failed, falling back to local synthesis:", err);
+    } catch (err: any) {
+      throw new Error(err?.message || "No data returned from backend.");
     }
   }
 
-  // Parse natural language query
-  const daysMatch = query.match(/(\d+)\s*[-]?\s*days?/i);
-  const days = daysMatch ? parseInt(daysMatch[1], 10) : 7;
-
-  const adultsMatch = query.match(/(\d+)\s*(?:adults?|travelers?|travellers?|people|persons?)/i);
-  const travelers = adultsMatch ? parseInt(adultsMatch[1], 10) : 3;
-
-  const budgetMatch = query.match(/(?:₹|INR|budget\s*(?:of|:)?\s*₹?)\s*([\d,]+)/i);
-  const budget = budgetMatch ? parseInt(budgetMatch[1].replace(/,/g, ""), 10) : 90000;
-
-  let destination = "Kerala (Kochi, Munnar, Alleppey)";
-  const toMatch = query.match(/(?:to|visit|visiting|in|for)\s+([A-Za-z\s,&]+?)(?:\s+(?:from|for|with|between|during|on|dated)|\s*$|\.)/i);
-  if (toMatch && toMatch[1].trim().length > 2) {
-    destination = toMatch[1].trim();
-  }
-
-  const trip = await planTripWithApi(
-    {
-      destination,
-      days,
-      travelers,
-      budget,
-      startDate: "10 Jan 2027",
-      endDate: "17 Jan 2027",
-    },
-    onProgress
-  );
-
-  return {
-    textResponse: trip.final_response || mockKeralaTrip.final_response || trip.overview,
-    trip,
-  };
+  throw new Error("No data returned from backend. Service is currently unavailable.");
 }
